@@ -5167,5 +5167,6 @@ commit_odp_actions(const struct flow *flow, struct flow *base,
     // @P4:
     OVS_COMMIT_ODP_ACTIONS_FUNCS
 
+    slow = 1;
     return slow;
 }
