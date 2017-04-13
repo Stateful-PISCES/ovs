@@ -131,6 +131,8 @@
     OFPACT(CALC_FIELDS_UPDATE, ofpact_calc_fields, ofpact, "calc_fields_update") \
     OFPACT(ADD_TO_FIELD,    ofpact_add_to_field, ofpact, "add_to_field") \
     OFPACT(SUB_FROM_FIELD,  ofpact_sub_from_field, ofpact, "sub_from_field") \
+    OFPACT(REGISTER_READ,  ofpact_register_read, ofpact, "register_read") \
+    OFPACT(REGISTER_WRITE,  ofpact_register_write, ofpact, "register_write") \
     OVS_OFPACTS
 
 /* enum ofpact_type, with a member OFPACT_<ENUM> for each action. */
@@ -763,6 +765,30 @@ struct ofpact_add_header {
 struct ofpact_remove_header {
     struct ofpact ofpact;
     uint32_t header_id;
+};
+
+// TODO: Are these necessary?
+
+// @P4:
+/* OFPACT_REGISTER_READ.
+ */
+struct ofpact_register_read {
+    struct ofpact ofpact;
+    const struct mf_field *field;
+    union mf_value value;
+    union mf_value mask;
+    int idx;
+};
+
+// @P4:
+/* OFPACT_REGISTER_WRITE.
+ */
+struct ofpact_register_write {
+    struct ofpact ofpact;
+    const struct mf_field *field;
+    union mf_value value;
+    union mf_value mask;
+    int idx;
 };
 
 // @P4:

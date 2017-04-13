@@ -327,6 +327,12 @@ enum ofp_raw_action_type {
 
 	/* OF1.5+(37): struct ofp_action_sub_from_field, ... */
 	OFPAT_RAW_SUB_FROM_FIELD,
+	
+	/* OF1.5+(38): ???, ... */
+	OFPAT_RAW_REGISTER_READ,
+	
+	/* OF1.5+(39): ???, ... */
+	OFPAT_RAW_REGISTER_WRITE,
 
 #include "p4/src/action/types.h" // @P4:
 };
@@ -952,6 +958,271 @@ format_MODIFY_FIELD(const struct ofpact_set_field *sf OVS_UNUSED,
 {
     return;
 }
+
+// TODO: The register_read and register_write functions are taken from 
+// add_to_field. More changes are probably needed for these
+
+struct ofp_action_register_read {
+    ovs_be16 type;
+    ovs_be16 len;
+
+    uint8_t pad[4];
+};
+OFP_ASSERT(sizeof(struct ofp_action_register_read) == 8);
+
+decode_ofpat_register_read(const struct ofp_action_register_read *a,
+                          bool may_mask, struct ofpbuf *ofpacts)
+{
+    struct ofpact_register_read *rr;
+    enum ofperr error;
+    struct ofpbuf b;
+
+    atf = ofpact_put_ADD_TO_FIELD(ofpacts);
+
+    ofpbuf_use_const(&b, a, ntohs(a->len));
+    ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
+    error = nx_pull_entry(&b, &rr->field, &rr->value,
+                          may_mask ? &rr->mask : NULL);
+    if (error) {
+        return (error == OFPERR_OFPBMC_BAD_MASK
+                ? OFPERR_OFPBAC_BAD_SET_MASK
+                : error);
+    }
+    if (!may_mask) {
+        memset(&rr->mask, 0xff, rr->field->n_bytes);
+    }
+
+    if (!is_all_zeros(b.data, b.size)) {
+        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
+    }
+
+    /* OpenFlow says specifically that one may not set OXM_OF_IN_PORT via
+     * Set-Field. */
+    if (rr->field->id == MFF_IN_PORT_OXM) {
+        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
+    }
+
+    /* oxm_length is now validated to be compatible with mf_value. */
+    if (!rr->field->writable) {
+        VLOG_WARN_RL(&rl, "destination field %s is not writable",
+                     rr->field->name);
+        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
+    }
+
+    return 0;
+}
+
+decode_OFPAT_RAW_REGISTER_READ(const struct ofp_action_register_read *a,
+                              struct ofpbuf *ofpacts)
+{
+    return decode_ofpat_register_read(a, true, ofpacts);
+}
+
+static void
+encode_REGISTER_READ(const struct ofpact_register_read *rr,
+                    enum ofp_version ofp_version, struct ofpbuf *out)
+{
+    if (ofp_version >= OFP15_VERSION) {
+        struct ofp_action_register_read *a OVS_UNUSED;
+        size_t start_ofs = out->size;
+
+        a = put_OFPAT_REGISTER_READ(out);
+        out->size = out->size - sizeof a->pad;
+        nx_put_entry(out, rr->field->id, ofp_version, &rr->value, &rr->mask);
+        pad_ofpat(out, start_ofs);
+    }
+}
+
+register_read_parse__(char *arg, struct ofpbuf *ofpacts,
+                     enum ofputil_protocol *usable_protocols)
+{
+    struct ofpact_register_read *rr = ofpact_put_REGISTER_READ(ofpacts);
+    char *value;
+    char *delim;
+    char *key;
+    const struct mf_field *mf;
+    char *error;
+
+    value = arg;
+    delim = strstr(arg, "->");
+    if (!delim) {
+        return xasprintf("%s: missing `->'", arg);
+    }
+    if (strlen(delim) <= strlen("->")) {
+        return xasprintf("%s: missing field name following `->'", arg);
+    }
+
+    key = delim + strlen("->");
+    mf = mf_from_name(key);
+    if (!mf) {
+        return xasprintf("%s is not a valid OXM field name", key);
+    }
+    if (!mf->writable) {
+        return xasprintf("%s is read-only", key);
+    }
+    rr->field = mf;
+    delim[0] = '\0';
+    error = mf_parse(mf, value, &rr->value, &rr->mask);
+    if (error) {
+        return error;
+    }
+
+    if (!mf_is_value_valid(mf, &rr->value)) {
+        return xasprintf("%s is not a valid value for field %s", value, key);
+    }
+
+    *usable_protocols &= mf->usable_protocols_exact;
+    return NULL;
+}
+
+parse_REGISTER_READ(char *arg, struct ofpbuf *ofpacts,
+                   enum ofputil_protocol *usable_protocols)
+{
+    char *copy = xstrdup(arg);
+    char *error = register_read_parse__(copy, ofpacts, usable_protocols);
+    free(copy);
+    return error;
+}
+
+static void
+format_REGISTER_READ(const struct ofpact_register_read *rr, struct ds *s)
+{
+    ds_put_cstr(s, "register_read:");
+    mf_format(rr->field, &rr->value, &rr->mask, s);
+    ds_put_format(s, "->%s", rr->field->name);
+}
+
+/* @P4: */
+struct ofp_action_register_write {
+    ovs_be16 type;
+    ovs_be16 len;
+
+    uint8_t pad[4];
+};
+OFP_ASSERT(sizeof(struct ofp_action_register_write) == 8);
+
+decode_ofpat_register_write(const struct ofp_action_register_write *a,
+                          bool may_mask, struct ofpbuf *ofpacts)
+{
+    struct ofpact_register_write *rw;
+    enum ofperr error;
+    struct ofpbuf b;
+
+    atf = ofpact_put_REGISTER_WRITE(ofpacts);
+
+    ofpbuf_use_const(&b, a, ntohs(a->len));
+    ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
+    error = nx_pull_entry(&b, &rw->field, &rw->value,
+                          may_mask ? &rw->mask : NULL);
+    if (error) {
+        return (error == OFPERR_OFPBMC_BAD_MASK
+                ? OFPERR_OFPBAC_BAD_SET_MASK
+                : error);
+    }
+    if (!may_mask) {
+        memset(&rw->mask, 0xff, rw->field->n_bytes);
+    }
+
+    if (!is_all_zeros(b.data, b.size)) {
+        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
+    }
+
+    /* OpenFlow says specifically that one may not set OXM_OF_IN_PORT via
+     * Set-Field. */
+    if (rw->field->id == MFF_IN_PORT_OXM) {
+        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
+    }
+
+    /* oxm_length is now validated to be compatible with mf_value. */
+    if (!rw->field->writable) {
+        VLOG_WARN_RL(&rl, "destination field %s is not writable",
+                     rw->field->name);
+        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
+    }
+
+    return 0;
+}
+
+decode_OFPAT_RAW_REGISTER_WRITE(const struct ofp_action_register_write *a,
+                              struct ofpbuf *ofpacts)
+{
+    return decode_ofpat_register_write(a, true, ofpacts);
+}
+
+static void
+encode_REGISTER_WRITE(const struct ofpact_register_write *rw,
+                    enum ofp_version ofp_version, struct ofpbuf *out)
+{
+    if (ofp_version >= OFP15_VERSION) {
+        struct ofp_action_register_read *a OVS_UNUSED;
+        size_t start_ofs = out->size;
+
+        a = put_OFPAT_REGISTER_READ(out);
+        out->size = out->size - sizeof a->pad;
+        nx_put_entry(out, rr->field->id, ofp_version, &rr->value, &rr->mask);
+        pad_ofpat(out, start_ofs);
+    }
+}
+
+register_write_parse__(char *arg, struct ofpbuf *ofpacts,
+                     enum ofputil_protocol *usable_protocols)
+{
+    struct ofpact_register_write *rw = ofpact_put_REGISTER_WRITE(ofpacts);
+    char *value;
+    char *delim;
+    char *key;
+    const struct mf_field *mf;
+    char *error;
+
+    value = arg;
+    delim = strstr(arg, "->");
+    if (!delim) {
+        return xasprintf("%s: missing `->'", arg);
+    }
+    if (strlen(delim) <= strlen("->")) {
+        return xasprintf("%s: missing field name following `->'", arg);
+    }
+
+    key = delim + strlen("->");
+    mf = mf_from_name(key);
+    if (!mf) {
+        return xasprintf("%s is not a valid OXM field name", key);
+    }
+    if (!mf->writable) {
+        return xasprintf("%s is read-only", key);
+    }
+    rw->field = mf;
+    delim[0] = '\0';
+    error = mf_parse(mf, value, &rw->value, &rw->mask);
+    if (error) {
+        return error;
+    }
+
+    if (!mf_is_value_valid(mf, &rw->value)) {
+        return xasprintf("%s is not a valid value for field %s", value, key);
+    }
+
+    *usable_protocols &= mf->usable_protocols_exact;
+    return NULL;
+}
+
+parse_REGISTER_WRITE(char *arg, struct ofpbuf *ofpacts,
+                   enum ofputil_protocol *usable_protocols)
+{
+    char *copy = xstrdup(arg);
+    char *error = register_write_parse__(copy, ofpacts, usable_protocols);
+    free(copy);
+    return error;
+}
+
+static void
+format_REGISTER_WRITE(const struct ofpact_register_write *rw, struct ds *s)
+{
+    ds_put_cstr(s, "register_write:");
+    mf_format(rw->field, &rw->value, &rw->mask, s);
+    ds_put_format(s, "->%s", rw->field->name);
+}
+
 
 // @P4:
 // TODO: 1. handle error checks.

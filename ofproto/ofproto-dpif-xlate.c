@@ -2869,7 +2869,10 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
         flow->in_port.ofp_port = peer->ofp_port;
         flow->metadata = htonll(0);
         memset(&flow->tunnel, 0, sizeof flow->tunnel);
+
+	// TODO: Is this the only place needed to stop reset of flow regs?
         memset(flow->regs, 0, sizeof flow->regs);
+
         flow->actset_output = OFPP_UNSET;
 
         /* The bridge is now known so obtain its table version. */
@@ -4508,6 +4511,66 @@ compose_deparse(struct xlate_ctx *ctx)
     nl_msg_put_flag(ctx->odp_actions, OVS_ACTION_ATTR_DEPARSE);
 }
 
+// @P4:
+static void
+compose_register_read(struct xlate_ctx *ctx,
+                   const struct ofpact_register_read *register_read)
+{
+	struct flow_wildcards *wc = ctx->wc;
+	struct flow *flow = &ctx->xin->flow;
+	bool use_masked = ctx->xbridge->support.masked_set_action;
+	ctx->xout->slow |= commit_odp_actions(&ctx->xin->flow, &ctx->base_flow,
+			ctx->odp_actions, ctx->wc,
+			use_masked);
+
+	const struct mf_field *mf = register_read->field;
+	const union mf_value *value = &register_read->value;
+
+	// TODO: 1. handle addition for masked fields.
+	// const union mf_value *mask = &add_to_field->mask;
+
+	mf_mask_field_and_prereqs(mf, wc);
+	if (mf_are_prereqs_ok(mf, flow)) {
+		switch (mf->id) {
+		OVS_COMPOSE_REGISTER_READ_CASES
+
+		case MFF_N_IDS:
+		default:
+			OVS_NOT_REACHED();
+		}
+	}
+}
+
+// @P4:
+static void
+compose_register_write(struct xlate_ctx *ctx,
+                   const struct ofpact_register_read *register_write)
+{
+	struct flow_wildcards *wc = ctx->wc;
+	struct flow *flow = &ctx->xin->flow;
+	bool use_masked = ctx->xbridge->support.masked_set_action;
+	ctx->xout->slow |= commit_odp_actions(&ctx->xin->flow, &ctx->base_flow,
+			ctx->odp_actions, ctx->wc,
+			use_masked);
+
+	const struct mf_field *mf = register_read->field;
+	const union mf_value *value = &register_read->value;
+
+	// TODO: 1. handle addition for masked fields.
+	// const union mf_value *mask = &add_to_field->mask;
+
+	mf_mask_field_and_prereqs(mf, wc);
+	if (mf_are_prereqs_ok(mf, flow)) {
+		switch (mf->id) {
+		OVS_COMPOSE_REGISTER_WRITE_CASES
+
+		case MFF_N_IDS:
+		default:
+			OVS_NOT_REACHED();
+		}
+	}
+}
+
 static void
 do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
                  struct xlate_ctx *ctx)
@@ -4937,6 +5000,22 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
         // @P4:
 		case OFPACT_DEPARSE:
 			compose_deparse(ctx);
+			break;
+		}
+
+		// @P4:
+		case OFPACT_REGISTER_READ: {
+			const struct ofpact_register_read *register_read;
+			register_read = ofpact_get_REGISTER_READ(a);
+			compose_register_read(ctx, register_read);
+			break;
+		}
+
+		// @P4:
+		case OFPACT_REGISTER_WRITE: {
+			const struct ofpact_register_write *register_write;
+			register_WRITE = ofpact_get_REGISTER_WRITE(a);
+			compose_register_WRITE(ctx, register_write);
 			break;
 		}
 
