@@ -4116,6 +4116,8 @@ recirc_unroll_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 		case OFPACT_CALC_FIELDS_VERIFY:
 		case OFPACT_SUB_FROM_FIELD:
 		case OFPACT_ADD_TO_FIELD:
+		case OFPACT_REGISTER_READ:
+		case OFPACT_REGISTER_WRITE:
 		case OFPACT_MODIFY_FIELD:
 		case OFPACT_REMOVE_HEADER:
 		case OFPACT_ADD_HEADER:
@@ -4532,7 +4534,7 @@ compose_register_read(struct xlate_ctx *ctx,
 	mf_mask_field_and_prereqs(mf, wc);
 	if (mf_are_prereqs_ok(mf, flow)) {
 		switch (mf->id) {
-		OVS_COMPOSE_REGISTER_READ_CASES
+		//OVS_COMPOSE_REGISTER_READ_CASES
 
 		case MFF_N_IDS:
 		default:
@@ -4544,7 +4546,7 @@ compose_register_read(struct xlate_ctx *ctx,
 // @P4:
 static void
 compose_register_write(struct xlate_ctx *ctx,
-                   const struct ofpact_register_read *register_write)
+                   const struct ofpact_register_write *register_write)
 {
 	struct flow_wildcards *wc = ctx->wc;
 	struct flow *flow = &ctx->xin->flow;
@@ -4553,8 +4555,8 @@ compose_register_write(struct xlate_ctx *ctx,
 			ctx->odp_actions, ctx->wc,
 			use_masked);
 
-	const struct mf_field *mf = register_read->field;
-	const union mf_value *value = &register_read->value;
+	const struct mf_field *mf = register_write->field;
+	const union mf_value *value = &register_write->value;
 
 	// TODO: 1. handle addition for masked fields.
 	// const union mf_value *mask = &add_to_field->mask;
@@ -4562,7 +4564,7 @@ compose_register_write(struct xlate_ctx *ctx,
 	mf_mask_field_and_prereqs(mf, wc);
 	if (mf_are_prereqs_ok(mf, flow)) {
 		switch (mf->id) {
-		OVS_COMPOSE_REGISTER_WRITE_CASES
+		//OVS_COMPOSE_REGISTER_WRITE_CASES
 
 		case MFF_N_IDS:
 		default:
@@ -4997,11 +4999,10 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 		case OFPACT_MODIFY_FIELD:
 			break;
 
-        // @P4:
+        	// @P4:
 		case OFPACT_DEPARSE:
 			compose_deparse(ctx);
 			break;
-		}
 
 		// @P4:
 		case OFPACT_REGISTER_READ: {
@@ -5014,10 +5015,11 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 		// @P4:
 		case OFPACT_REGISTER_WRITE: {
 			const struct ofpact_register_write *register_write;
-			register_WRITE = ofpact_get_REGISTER_WRITE(a);
-			compose_register_WRITE(ctx, register_write);
+			register_write = ofpact_get_REGISTER_WRITE(a);
+			compose_register_write(ctx, register_write);
 			break;
 		}
+	}
 
         /* Check if need to store this and the remaining actions for later
          * execution. */

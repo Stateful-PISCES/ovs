@@ -770,6 +770,30 @@ format_odp_action(struct ds *ds, const struct nlattr *a)
 		ds_put_cstr(ds, ")");
 		break;
 
+	// TODO: REG READ and REG WRITE are based on ADD TO FIELD
+	// 	 May need to change this in the future
+	// @P4:
+	case OVS_ACTION_ATTR_REGISTER_READ:
+		a = nl_attr_get(a);
+		size = nl_attr_get_size(a);
+		ds_put_cstr(ds, "register_read(");
+
+		format_odp_key_attr(a, NULL, NULL, ds, false);
+
+		ds_put_cstr(ds, ")");
+		break;
+
+	// @P4:
+	case OVS_ACTION_ATTR_REGISTER_WRITE:
+		a = nl_attr_get(a);
+		size = nl_attr_get_size(a);
+		ds_put_cstr(ds, "register_write(");
+
+		format_odp_key_attr(a, NULL, NULL, ds, false);
+
+		ds_put_cstr(ds, ")");
+		break;
+
 	// @P4:
 	case OVS_ACTION_ATTR_ADD_HEADER: {
 		a = nl_attr_get(a);

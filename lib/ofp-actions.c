@@ -328,10 +328,10 @@ enum ofp_raw_action_type {
 	/* OF1.5+(37): struct ofp_action_sub_from_field, ... */
 	OFPAT_RAW_SUB_FROM_FIELD,
 	
-	/* OF1.5+(38): ???, ... */
+	/* OF1.5+(38): struct ofp_action_register_read, ... */
 	OFPAT_RAW_REGISTER_READ,
 	
-	/* OF1.5+(39): ???, ... */
+	/* OF1.5+(39): struct ofp_action_register_write, ... */
 	OFPAT_RAW_REGISTER_WRITE,
 
 #include "p4/src/action/types.h" // @P4:
@@ -970,6 +970,7 @@ struct ofp_action_register_read {
 };
 OFP_ASSERT(sizeof(struct ofp_action_register_read) == 8);
 
+static enum ofperr
 decode_ofpat_register_read(const struct ofp_action_register_read *a,
                           bool may_mask, struct ofpbuf *ofpacts)
 {
@@ -977,7 +978,7 @@ decode_ofpat_register_read(const struct ofp_action_register_read *a,
     enum ofperr error;
     struct ofpbuf b;
 
-    atf = ofpact_put_ADD_TO_FIELD(ofpacts);
+    rr = ofpact_put_REGISTER_READ(ofpacts);
 
     ofpbuf_use_const(&b, a, ntohs(a->len));
     ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
@@ -1012,6 +1013,7 @@ decode_ofpat_register_read(const struct ofp_action_register_read *a,
     return 0;
 }
 
+static enum ofperr
 decode_OFPAT_RAW_REGISTER_READ(const struct ofp_action_register_read *a,
                               struct ofpbuf *ofpacts)
 {
@@ -1033,6 +1035,7 @@ encode_REGISTER_READ(const struct ofpact_register_read *rr,
     }
 }
 
+static char * OVS_WARN_UNUSED_RESULT
 register_read_parse__(char *arg, struct ofpbuf *ofpacts,
                      enum ofputil_protocol *usable_protocols)
 {
@@ -1075,6 +1078,7 @@ register_read_parse__(char *arg, struct ofpbuf *ofpacts,
     return NULL;
 }
 
+static char * OVS_WARN_UNUSED_RESULT
 parse_REGISTER_READ(char *arg, struct ofpbuf *ofpacts,
                    enum ofputil_protocol *usable_protocols)
 {
@@ -1101,6 +1105,7 @@ struct ofp_action_register_write {
 };
 OFP_ASSERT(sizeof(struct ofp_action_register_write) == 8);
 
+static enum ofperr
 decode_ofpat_register_write(const struct ofp_action_register_write *a,
                           bool may_mask, struct ofpbuf *ofpacts)
 {
@@ -1108,7 +1113,7 @@ decode_ofpat_register_write(const struct ofp_action_register_write *a,
     enum ofperr error;
     struct ofpbuf b;
 
-    atf = ofpact_put_REGISTER_WRITE(ofpacts);
+    rw = ofpact_put_REGISTER_WRITE(ofpacts);
 
     ofpbuf_use_const(&b, a, ntohs(a->len));
     ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
@@ -1143,6 +1148,7 @@ decode_ofpat_register_write(const struct ofp_action_register_write *a,
     return 0;
 }
 
+static enum ofperr
 decode_OFPAT_RAW_REGISTER_WRITE(const struct ofp_action_register_write *a,
                               struct ofpbuf *ofpacts)
 {
@@ -1154,16 +1160,17 @@ encode_REGISTER_WRITE(const struct ofpact_register_write *rw,
                     enum ofp_version ofp_version, struct ofpbuf *out)
 {
     if (ofp_version >= OFP15_VERSION) {
-        struct ofp_action_register_read *a OVS_UNUSED;
+        struct ofp_action_register_write *a OVS_UNUSED;
         size_t start_ofs = out->size;
 
-        a = put_OFPAT_REGISTER_READ(out);
+        a = put_OFPAT_REGISTER_WRITE(out);
         out->size = out->size - sizeof a->pad;
-        nx_put_entry(out, rr->field->id, ofp_version, &rr->value, &rr->mask);
+        nx_put_entry(out, rw->field->id, ofp_version, &rw->value, &rw->mask);
         pad_ofpat(out, start_ofs);
     }
 }
 
+static char * OVS_WARN_UNUSED_RESULT
 register_write_parse__(char *arg, struct ofpbuf *ofpacts,
                      enum ofputil_protocol *usable_protocols)
 {
@@ -1206,6 +1213,7 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
     return NULL;
 }
 
+static char * OVS_WARN_UNUSED_RESULT
 parse_REGISTER_WRITE(char *arg, struct ofpbuf *ofpacts,
                    enum ofputil_protocol *usable_protocols)
 {
@@ -6194,6 +6202,8 @@ ofpact_is_set_or_move_action(const struct ofpact *a)
 	case OFPACT_CALC_FIELDS_VERIFY:
 	case OFPACT_SUB_FROM_FIELD:
 	case OFPACT_ADD_TO_FIELD:
+	case OFPACT_REGISTER_READ:
+	case OFPACT_REGISTER_WRITE:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
@@ -6278,6 +6288,8 @@ ofpact_is_allowed_in_actions_set(const struct ofpact *a)
 	case OFPACT_CALC_FIELDS_VERIFY:
 	case OFPACT_SUB_FROM_FIELD:
 	case OFPACT_ADD_TO_FIELD:
+	case OFPACT_REGISTER_READ:
+	case OFPACT_REGISTER_WRITE:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
@@ -6455,6 +6467,8 @@ ovs_instruction_type_from_ofpact_type(enum ofpact_type type)
 	case OFPACT_CALC_FIELDS_VERIFY:
 	case OFPACT_SUB_FROM_FIELD:
 	case OFPACT_ADD_TO_FIELD:
+	case OFPACT_REGISTER_READ:
+	case OFPACT_REGISTER_WRITE:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
@@ -7111,6 +7125,8 @@ ofpact_check__(enum ofputil_protocol *usable_protocols, struct ofpact *a,
 	case OFPACT_CALC_FIELDS_VERIFY:
 	case OFPACT_SUB_FROM_FIELD:
 	case OFPACT_ADD_TO_FIELD:
+	case OFPACT_REGISTER_READ:
+	case OFPACT_REGISTER_WRITE:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
@@ -7506,6 +7522,8 @@ ofpact_outputs_to_port(const struct ofpact *ofpact, ofp_port_t port)
 	case OFPACT_CALC_FIELDS_VERIFY:
 	case OFPACT_SUB_FROM_FIELD:
 	case OFPACT_ADD_TO_FIELD:
+	case OFPACT_REGISTER_READ:
+	case OFPACT_REGISTER_WRITE:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
