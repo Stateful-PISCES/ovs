@@ -767,8 +767,6 @@ struct ofpact_remove_header {
     uint32_t header_id;
 };
 
-// TODO: Are these necessary?
-
 // @P4:
 /* OFPACT_REGISTER_READ.
  */

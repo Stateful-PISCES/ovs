@@ -1046,16 +1046,23 @@ register_read_parse__(char *arg, struct ofpbuf *ofpacts,
     const struct mf_field *mf;
     char *error;
 
-    value = arg;
-    delim = strstr(arg, "->");
-    if (!delim) {
-        return xasprintf("%s: missing `->'", arg);
-    }
-    if (strlen(delim) <= strlen("->")) {
-        return xasprintf("%s: missing field name following `->'", arg);
-    }
+    // TODO: For now, we just assume the register that
+    // REGISTER_READ is reading from so it is not specified
+    // in the flow table rules. Only the field being modified
+    // is specified in format: register_read:field.
+    // This will change...
 
-    key = delim + strlen("->");
+    //value = arg;
+    //delim = strstr(arg, "->");
+    //if (!delim) {
+    //    return xasprintf("%s: missing `->'", arg);
+    //}
+    //if (strlen(delim) <= strlen("->")) {
+    //    return xasprintf("%s: missing field name following `->'", arg);
+    //}
+
+    //key = delim + strlen("->");
+    key = arg;
     mf = mf_from_name(key);
     if (!mf) {
         return xasprintf("%s is not a valid OXM field name", key);
@@ -1064,15 +1071,6 @@ register_read_parse__(char *arg, struct ofpbuf *ofpacts,
         return xasprintf("%s is read-only", key);
     }
     rr->field = mf;
-    delim[0] = '\0';
-    error = mf_parse(mf, value, &rr->value, &rr->mask);
-    if (error) {
-        return error;
-    }
-
-    if (!mf_is_value_valid(mf, &rr->value)) {
-        return xasprintf("%s is not a valid value for field %s", value, key);
-    }
 
     *usable_protocols &= mf->usable_protocols_exact;
     return NULL;
@@ -1190,7 +1188,11 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
         return xasprintf("%s: missing field name following `->'", arg);
     }
 
+
     key = delim + strlen("->");
+
+    // TODO: Using the reg0 field for now. Maybe a new state reg field 
+    // should be used...
     mf = mf_from_name(key);
     if (!mf) {
         return xasprintf("%s is not a valid OXM field name", key);
@@ -1208,8 +1210,9 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
     if (!mf_is_value_valid(mf, &rw->value)) {
         return xasprintf("%s is not a valid value for field %s", value, key);
     }
-
+    
     *usable_protocols &= mf->usable_protocols_exact;
+    
     return NULL;
 }
 
