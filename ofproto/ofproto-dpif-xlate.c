@@ -4527,20 +4527,20 @@ compose_register_read(struct xlate_ctx *ctx,
 
 	const struct mf_field *mf = register_read->field;
 	const union mf_value *value = &register_read->value;
+	const union mf_value *mask = &register_read->mask;
 
-	// TODO: 1. handle addition for masked fields.
-	// const union mf_value *mask = &add_to_field->mask;
-
-	mf_mask_field_and_prereqs(mf, wc);
-	if (mf_are_prereqs_ok(mf, flow)) {
-		switch (mf->id) {
+	//mf_mask_field_and_prereqs(mf, wc);
+	//if (mf_are_prereqs_ok(mf, flow)) {
+	//	switch (mf->id) {
 		//OVS_COMPOSE_REGISTER_READ_CASES
 
-		case MFF_N_IDS:
-		default:
-			OVS_NOT_REACHED();
-		}
-	}
+	//	case MFF_N_IDS:
+	//	default:
+	//		OVS_NOT_REACHED();
+	//	}
+	//}
+	OVS_COMPOSE_REGISTER_READ_CASES
+	printf("\n****************** REGISTER READ %d****************\n", flow->regs[7]);
 }
 
 // @P4:
@@ -4561,16 +4561,18 @@ compose_register_write(struct xlate_ctx *ctx,
 	// TODO: 1. handle addition for masked fields.
 	// const union mf_value *mask = &add_to_field->mask;
 
-	mf_mask_field_and_prereqs(mf, wc);
-	if (mf_are_prereqs_ok(mf, flow)) {
-		switch (mf->id) {
+	//mf_mask_field_and_prereqs(mf, wc);
+	//if (mf_are_prereqs_ok(mf, flow)) {
+	//	switch (mf->id) {
 		//OVS_COMPOSE_REGISTER_WRITE_CASES
 
-		case MFF_N_IDS:
-		default:
-			OVS_NOT_REACHED();
-		}
-	}
+	//	case MFF_N_IDS:
+	//	default:
+	//		OVS_NOT_REACHED();
+	//	}
+	//}
+	OVS_COMPOSE_REGISTER_WRITE_CASES
+	printf("\n****************** REGISTER WRITE %d****************\n", flow->regs[7]);
 }
 
 static void
