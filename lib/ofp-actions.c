@@ -1098,10 +1098,12 @@ format_REGISTER_READ(const struct ofpact_register_read *rr, struct ds *s)
 struct ofp_action_register_write {
     ovs_be16 type;
     ovs_be16 len;
+    int idx;
+    int value;
 
     uint8_t pad[4];
 };
-OFP_ASSERT(sizeof(struct ofp_action_register_write) == 8);
+OFP_ASSERT(sizeof(struct ofp_action_register_write) == 16);
 
 static enum ofperr
 decode_ofpat_register_write(const struct ofp_action_register_write *a,
@@ -1114,35 +1116,10 @@ decode_ofpat_register_write(const struct ofp_action_register_write *a,
     rw = ofpact_put_REGISTER_WRITE(ofpacts);
 
     ofpbuf_use_const(&b, a, ntohs(a->len));
-    ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
-    error = nx_pull_entry(&b, &rw->field, &rw->value,
-                          may_mask ? &rw->mask : NULL);
-    if (error) {
-        return (error == OFPERR_OFPBMC_BAD_MASK
-                ? OFPERR_OFPBAC_BAD_SET_MASK
-                : error);
-    }
-    if (!may_mask) {
-        memset(&rw->mask, 0xff, rw->field->n_bytes);
-    }
-
-    if (!is_all_zeros(b.data, b.size)) {
-        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
-    }
-
-    /* OpenFlow says specifically that one may not set OXM_OF_IN_PORT via
-     * Set-Field. */
-    if (rw->field->id == MFF_IN_PORT_OXM) {
-        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
-    }
-
-    /* oxm_length is now validated to be compatible with mf_value. */
-    if (!rw->field->writable) {
-        VLOG_WARN_RL(&rl, "destination field %s is not writable",
-                     rw->field->name);
-        return OFPERR_OFPBAC_BAD_SET_ARGUMENT;
-    }
-
+    ofpbuf_pull(&b, a);
+    rw->idx = a->idx;
+    rw->test_value = a->value;
+     
     return 0;
 }
 
@@ -1162,10 +1139,13 @@ encode_REGISTER_WRITE(const struct ofpact_register_write *rw,
         size_t start_ofs = out->size;
 
         a = put_OFPAT_REGISTER_WRITE(out);
-        out->size = out->size - sizeof a->pad;
-        nx_put_entry(out, rw->field->id, ofp_version, &rw->value, &rw->mask);
+        //out->size = out->size - sizeof a->pad;
+	a->idx = rw->idx;
+	a->value = rw->test_value;
+        ofpbuf_put(out, &rw, sizeof(struct ofpact_register_write));
         pad_ofpat(out, start_ofs);
     }
+    printf("\n*********** ENCODING REGISTER_WRITE *************\n");
 }
 
 static char * OVS_WARN_UNUSED_RESULT
@@ -1193,26 +1173,29 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
 
     // TODO: Using the reg0 field for now. Maybe a new state reg field 
     // should be used...
-    mf = mf_from_name(key);
-    if (!mf) {
-        return xasprintf("%s is not a valid OXM field name", key);
-    }
-    if (!mf->writable) {
-        return xasprintf("%s is read-only", key);
-    }
-    rw->field = mf;
-    delim[0] = '\0';
-    error = mf_parse(mf, value, &rw->value, &rw->mask);
-    if (error) {
-        return error;
-    }
+    //mf = mf_from_name(key);
+    //if (!mf) {
+    //    return xasprintf("%s is not a valid OXM field name", key);
+    //}
+    //if (!mf->writable) {
+    //    return xasprintf("%s is read-only", key);
+    //}
+    //rw->field = mf;
+    //delim[0] = '\0';
+    //error = mf_parse(mf, value, &rw->value, &rw->mask);
+    //if (error) {
+    //    return error;
+    //}
 
-    if (!mf_is_value_valid(mf, &rw->value)) {
-        return xasprintf("%s is not a valid value for field %s", value, key);
-    }
+    //if (!mf_is_value_valid(mf, &rw->value)) {
+    //    return xasprintf("%s is not a valid value for field %s", value, key);
+    //}
+    rw->idx = 101;
+    rw->test_value = 15;
+    //*usable_protocols &= mf->usable_protocols_exact;
     
-    *usable_protocols &= mf->usable_protocols_exact;
-    
+    printf("\n*********** PARSING REGISTER_WRITE *************\n");
+
     return NULL;
 }
 
@@ -1230,8 +1213,9 @@ static void
 format_REGISTER_WRITE(const struct ofpact_register_write *rw, struct ds *s)
 {
     ds_put_cstr(s, "register_write:");
-    mf_format(rw->field, &rw->value, &rw->mask, s);
-    ds_put_format(s, "->%s", rw->field->name);
+    //mf_format(rw->field, &rw->value, &rw->mask, s);
+    //ds_put_format(s, "->%s", rw->field->name);
+    printf("\n*********** FORMATTING REGISTER_WRITE *************\n");
 }
 
 

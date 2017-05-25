@@ -4570,25 +4570,14 @@ compose_register_write(struct xlate_ctx *ctx,
 			ctx->odp_actions, ctx->wc,
 			use_masked);
 
-	const struct mf_field *mf = register_write->field;
-	const union mf_value *value = &register_write->value;
+	int *value = &register_write->test_value;
 
-	// TODO: 1. handle addition for masked fields.
-	// const union mf_value *mask = &add_to_field->mask;
+	
+	//printf("\n****************** REGISTER WRITE IDX %d****************\n", register_write->idx);
 
-	//mf_mask_field_and_prereqs(mf, wc);
-	//if (mf_are_prereqs_ok(mf, flow)) {
-	//	switch (mf->id) {
-		//OVS_COMPOSE_REGISTER_WRITE_CASES
-
-	//	case MFF_N_IDS:
-	//	default:
-	//		OVS_NOT_REACHED();
-	//	}
-	//}
 	int *stateful_regs = getStatefulRegisterInstance();
 	OVS_COMPOSE_REGISTER_WRITE_CASES
-	//printf("\n****************** REGISTER WRITE %d****************\n", stateful_regs[1]);
+	//printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[1]);
 }
 
 static void
