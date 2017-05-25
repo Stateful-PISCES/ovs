@@ -314,6 +314,20 @@ struct xlate_ctx {
     struct ofpbuf action_set;   /* Action set. */
 };
 
+
+static int* getStatefulRegisterInstance()
+{
+    static int *instance = NULL;
+
+    if(instance == NULL)
+    {
+	instance = xzalloc_cacheline(sizeof(int) * 4);
+    }
+
+    return instance;
+};
+
+
 static void xlate_action_set(struct xlate_ctx *ctx);
 static void xlate_commit_actions(struct xlate_ctx *ctx);
 
@@ -4539,8 +4553,9 @@ compose_register_read(struct xlate_ctx *ctx,
 	//		OVS_NOT_REACHED();
 	//	}
 	//}
+	int *stateful_regs = getStatefulRegisterInstance();
 	OVS_COMPOSE_REGISTER_READ_CASES
-	printf("\n****************** REGISTER READ %d****************\n", flow->regs[7]);
+	//printf("\n****************** REGISTER READ %d****************\n", stateful_regs[1]);
 }
 
 // @P4:
@@ -4571,8 +4586,9 @@ compose_register_write(struct xlate_ctx *ctx,
 	//		OVS_NOT_REACHED();
 	//	}
 	//}
+	int *stateful_regs = getStatefulRegisterInstance();
 	OVS_COMPOSE_REGISTER_WRITE_CASES
-	printf("\n****************** REGISTER WRITE %d****************\n", flow->regs[7]);
+	//printf("\n****************** REGISTER WRITE %d****************\n", stateful_regs[1]);
 }
 
 static void
