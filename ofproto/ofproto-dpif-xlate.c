@@ -4132,6 +4132,8 @@ recirc_unroll_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 		case OFPACT_ADD_TO_FIELD:
 		case OFPACT_REGISTER_READ:
 		case OFPACT_REGISTER_WRITE:
+		case OFPACT_LOCK:
+		case OFPACT_UNLOCK:
 		case OFPACT_MODIFY_FIELD:
 		case OFPACT_REMOVE_HEADER:
 		case OFPACT_ADD_HEADER:
@@ -4587,6 +4589,42 @@ compose_register_write(struct xlate_ctx *ctx,
 	//printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[idx]);
 }
 
+// @P4:
+static void
+compose_lock(struct xlate_ctx *ctx,
+                   const struct ofpact_lock *lock)
+{
+	struct flow_wildcards *wc = ctx->wc;
+	struct flow *flow = &ctx->xin->flow;
+	bool use_masked = ctx->xbridge->support.masked_set_action;
+	ctx->xout->slow |= commit_odp_actions(&ctx->xin->flow, &ctx->base_flow,
+			ctx->odp_actions, ctx->wc,
+			use_masked);
+
+	int idx = lock->idx;
+
+	// TODO: ADD MACRO FROM P4C-BEHAVIORAL TO PERFORM LOCK.
+	// USE 'idx' AS THE INDEX OF THE LOCK.
+}
+
+// @P4:
+static void
+compose_unlock(struct xlate_ctx *ctx,
+                   const struct ofpact_unlock *unlock)
+{
+	struct flow_wildcards *wc = ctx->wc;
+	struct flow *flow = &ctx->xin->flow;
+	bool use_masked = ctx->xbridge->support.masked_set_action;
+	ctx->xout->slow |= commit_odp_actions(&ctx->xin->flow, &ctx->base_flow,
+			ctx->odp_actions, ctx->wc,
+			use_masked);
+
+	int idx = unlock->idx;
+        
+	// TODO: ADD MACRO FROM P4C-BEHAVIORAL TO PERFORM UNLOCK.
+	// USE 'idx' AS THE INDEX OF THE LOCK.
+}
+
 static void
 do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
                  struct xlate_ctx *ctx)
@@ -5031,6 +5069,22 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 			const struct ofpact_register_write *register_write;
 			register_write = ofpact_get_REGISTER_WRITE(a);
 			compose_register_write(ctx, register_write);
+			break;
+		}
+		
+		// @P4:
+		case OFPACT_LOCK: {
+			const struct ofpact_lock *lock;
+			lock = ofpact_get_LOCK(a);
+			compose_lock(ctx, lock);
+			break;
+		}
+		
+		// @P4:
+		case OFPACT_UNLOCK: {
+			const struct ofpact_unlock *unlock;
+			unlock = ofpact_get_UNLOCK(a);
+			compose_unlock(ctx, unlock);
 			break;
 		}
 	}

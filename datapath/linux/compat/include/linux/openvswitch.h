@@ -732,6 +732,8 @@ enum ovs_action_attr {
 	OVS_ACTION_ATTR_DEPARSE,
 	OVS_ACTION_ATTR_REGISTER_READ,
 	OVS_ACTION_ATTR_REGISTER_WRITE,
+	OVS_ACTION_ATTR_LOCK,
+	OVS_ACTION_ATTR_UNLOCK,
 #endif
 	__OVS_ACTION_ATTR_MAX,	      /* Nothing past this will be accepted
 				       * from userspace. */

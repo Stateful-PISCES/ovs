@@ -333,6 +333,12 @@ enum ofp_raw_action_type {
 	
 	/* OF1.5+(39): struct ofp_action_register_write, ... */
 	OFPAT_RAW_REGISTER_WRITE,
+	
+	/* OF1.5+(40): struct ofp_action_lock, ... */
+	OFPAT_RAW_LOCK,
+	
+	/* OF1.5+(41): struct ofp_action_unlock, ... */
+	OFPAT_RAW_UNLOCK,
 
 #include "p4/src/action/types.h" // @P4:
 };
@@ -1239,6 +1245,191 @@ format_REGISTER_WRITE(const struct ofpact_register_write *rw, struct ds *s)
     //ds_put_format(s, "->%s", rw->field->name);
 }
 
+/* @P4: */
+struct ofp_action_lock {
+    ovs_be16 type;
+    ovs_be16 len;
+    int idx;
+
+    uint8_t pad[8];
+};
+OFP_ASSERT(sizeof(struct ofp_action_lock) == 16);
+
+static enum ofperr
+decode_ofpat_lock(const struct ofp_action_lock *a,
+                          bool may_mask, struct ofpbuf *ofpacts)
+{
+    struct ofpact_lock *lock;
+    enum ofperr error;
+    struct ofpbuf b;
+
+    lock = ofpact_put_LOCK(ofpacts);
+
+    ofpbuf_use_const(&b, a, ntohs(a->len));
+    ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
+    lock->idx = a->idx;
+     
+    return 0;
+}
+
+static enum ofperr
+decode_OFPAT_RAW_LOCK(const struct ofp_action_lock *a,
+                              struct ofpbuf *ofpacts)
+{
+    return decode_ofpat_lock(a, true, ofpacts);
+}
+
+static void
+encode_LOCK(const struct ofpact_lock *lock,
+                    enum ofp_version ofp_version, struct ofpbuf *out)
+{
+    if (ofp_version >= OFP15_VERSION) {
+        struct ofp_action_lock *a OVS_UNUSED;
+        size_t start_ofs = out->size;
+
+        a = put_OFPAT_LOCK(out);
+        out->size = out->size - sizeof a->pad;
+	a->idx = lock->idx;
+        ofpbuf_put(out, &lock, sizeof(struct ofpact_lock));
+        pad_ofpat(out, start_ofs);
+    }
+}
+
+static char * OVS_WARN_UNUSED_RESULT
+lock_parse__(char *arg, struct ofpbuf *ofpacts,
+                     enum ofputil_protocol *usable_protocols)
+{
+    struct ofpact_lock *lock = ofpact_put_LOCK(ofpacts);
+    char *tail;
+    int err;
+    int value;
+    int idx;
+
+    // Parse the lock index and set the index in the ofpact struct
+    err = parse_int_string(arg, (uint8_t*)(&idx), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", arg, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", arg);
+    }
+    
+    lock->idx = ntohl(idx);
+ 
+
+    return NULL;
+
+
+    
+}
+
+static char * OVS_WARN_UNUSED_RESULT
+parse_LOCK(char *arg, struct ofpbuf *ofpacts,
+                   enum ofputil_protocol *usable_protocols)
+{
+    char *copy = xstrdup(arg);
+    char *error = lock_parse__(copy, ofpacts, usable_protocols);
+    free(copy);
+    return error;
+}
+
+static void
+format_LOCK(const struct ofpact_register_write *rw, struct ds *s)
+{
+    ds_put_cstr(s, "lock:");
+}
+
+/* @P4: */
+struct ofp_action_unlock {
+    ovs_be16 type;
+    ovs_be16 len;
+    int idx;
+
+    uint8_t pad[8];
+};
+OFP_ASSERT(sizeof(struct ofp_action_unlock) == 16);
+
+static enum ofperr
+decode_ofpat_unlock(const struct ofp_action_unlock *a,
+                          bool may_mask, struct ofpbuf *ofpacts)
+{
+    struct ofpact_unlock *unlock;
+    enum ofperr error;
+    struct ofpbuf b;
+
+    unlock = ofpact_put_UNLOCK(ofpacts);
+
+    ofpbuf_use_const(&b, a, ntohs(a->len));
+    ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
+    unlock->idx = a->idx;
+     
+    return 0;
+}
+
+static enum ofperr
+decode_OFPAT_RAW_UNLOCK(const struct ofp_action_unlock *a,
+                              struct ofpbuf *ofpacts)
+{
+    return decode_ofpat_unlock(a, true, ofpacts);
+}
+
+static void
+encode_UNLOCK(const struct ofpact_lock *unlock,
+                    enum ofp_version ofp_version, struct ofpbuf *out)
+{
+    if (ofp_version >= OFP15_VERSION) {
+        struct ofp_action_unlock *a OVS_UNUSED;
+        size_t start_ofs = out->size;
+
+        a = put_OFPAT_UNLOCK(out);
+        out->size = out->size - sizeof a->pad;
+	a->idx = unlock->idx;
+        ofpbuf_put(out, &unlock, sizeof(struct ofpact_unlock));
+        pad_ofpat(out, start_ofs);
+    }
+}
+
+static char * OVS_WARN_UNUSED_RESULT
+unlock_parse__(char *arg, struct ofpbuf *ofpacts,
+                     enum ofputil_protocol *usable_protocols)
+{
+    struct ofpact_unlock *unlock = ofpact_put_UNLOCK(ofpacts);
+    char *tail;
+    int err;
+    int value;
+    int idx;
+
+    // Parse the lock index and set the index in the ofpact struct
+    err = parse_int_string(arg, (uint8_t*)(&idx), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", arg, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", arg);
+    }
+    
+    unlock->idx = ntohl(idx);
+ 
+
+    return NULL;
+
+
+    
+}
+
+static char * OVS_WARN_UNUSED_RESULT
+parse_UNLOCK(char *arg, struct ofpbuf *ofpacts,
+                   enum ofputil_protocol *usable_protocols)
+{
+    char *copy = xstrdup(arg);
+    char *error = unlock_parse__(copy, ofpacts, usable_protocols);
+    free(copy);
+    return error;
+}
+
+static void
+format_UNLOCK(const struct ofpact_register_write *rw, struct ds *s)
+{
+    ds_put_cstr(s, "unlock:");
+}
 
 // @P4:
 // TODO: 1. handle error checks.
@@ -6212,6 +6403,8 @@ ofpact_is_set_or_move_action(const struct ofpact *a)
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_LOCK:
+	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
@@ -6298,6 +6491,8 @@ ofpact_is_allowed_in_actions_set(const struct ofpact *a)
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_LOCK:
+	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
@@ -6477,6 +6672,8 @@ ovs_instruction_type_from_ofpact_type(enum ofpact_type type)
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_LOCK:
+	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
@@ -7135,6 +7332,8 @@ ofpact_check__(enum ofputil_protocol *usable_protocols, struct ofpact *a,
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_LOCK:
+	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:
@@ -7532,6 +7731,8 @@ ofpact_outputs_to_port(const struct ofpact *ofpact, ofp_port_t port)
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_LOCK:
+	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
 	case OFPACT_REMOVE_HEADER:
 	case OFPACT_MODIFY_FIELD:

@@ -795,6 +795,28 @@ format_odp_action(struct ds *ds, const struct nlattr *a)
 		break;
 
 	// @P4:
+	case OVS_ACTION_ATTR_LOCK:
+		a = nl_attr_get(a);
+		size = nl_attr_get_size(a);
+		ds_put_cstr(ds, "lock(");
+
+		format_odp_key_attr(a, NULL, NULL, ds, false);
+
+		ds_put_cstr(ds, ")");
+		break;
+
+	// @P4:
+	case OVS_ACTION_ATTR_UNLOCK:
+		a = nl_attr_get(a);
+		size = nl_attr_get_size(a);
+		ds_put_cstr(ds, "unlock(");
+
+		format_odp_key_attr(a, NULL, NULL, ds, false);
+
+		ds_put_cstr(ds, ")");
+		break;
+
+	// @P4:
 	case OVS_ACTION_ATTR_ADD_HEADER: {
 		a = nl_attr_get(a);
 		enum ovs_key_attr key = nl_attr_type(a);

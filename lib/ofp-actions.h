@@ -133,6 +133,8 @@
     OFPACT(SUB_FROM_FIELD,  ofpact_sub_from_field, ofpact, "sub_from_field") \
     OFPACT(REGISTER_READ,  ofpact_register_read, ofpact, "register_read") \
     OFPACT(REGISTER_WRITE,  ofpact_register_write, ofpact, "register_write") \
+    OFPACT(LOCK,            ofpact_lock,        ofpact, "lock") \
+    OFPACT(UNLOCK,          ofpact_unlock,      ofpact, "unlock") \
     OVS_OFPACTS
 
 /* enum ofpact_type, with a member OFPACT_<ENUM> for each action. */
@@ -784,6 +786,22 @@ struct ofpact_register_read {
 struct ofpact_register_write {
     struct ofpact ofpact;
     int value;
+    int idx;
+};
+
+// @P4:
+/* OFPACT_LOCK.
+ */
+struct ofpact_lock {
+    struct ofpact ofpact;
+    int idx;
+};
+
+// @P4:
+/* OFPACT_UNLOCK.
+ */
+struct ofpact_unlock {
+    struct ofpact ofpact;
     int idx;
 };
 
