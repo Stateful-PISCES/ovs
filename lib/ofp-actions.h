@@ -783,10 +783,7 @@ struct ofpact_register_read {
  */
 struct ofpact_register_write {
     struct ofpact ofpact;
-    //const struct mf_field *field;
-    //union mf_value value;
-    //union mf_value mask;
-    int test_value;
+    int value;
     int idx;
 };
 

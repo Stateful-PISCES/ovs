@@ -4542,6 +4542,7 @@ compose_register_read(struct xlate_ctx *ctx,
 	const struct mf_field *mf = register_read->field;
 	const union mf_value *value = &register_read->value;
 	const union mf_value *mask = &register_read->mask;
+	int idx = register_read->idx;
 
 	//mf_mask_field_and_prereqs(mf, wc);
 	//if (mf_are_prereqs_ok(mf, flow)) {
@@ -4555,7 +4556,8 @@ compose_register_read(struct xlate_ctx *ctx,
 	//}
 	int *stateful_regs = getStatefulRegisterInstance();
 	OVS_COMPOSE_REGISTER_READ_CASES
-	//printf("\n****************** REGISTER READ %d****************\n", stateful_regs[1]);
+	printf("\n****************** REGISTER READ IDX %d****************\n", register_read->idx);
+	printf("\n****************** REGISTER READ VAL %d****************\n", stateful_regs[idx]);
 }
 
 // @P4:
@@ -4570,14 +4572,15 @@ compose_register_write(struct xlate_ctx *ctx,
 			ctx->odp_actions, ctx->wc,
 			use_masked);
 
-	int *value = &register_write->test_value;
+	int *value = &register_write->value;
+	int idx = register_write->idx;
 
 	
-	//printf("\n****************** REGISTER WRITE IDX %d****************\n", register_write->idx);
+	printf("\n****************** REGISTER WRITE IDX %d****************\n", register_write->idx);
 
 	int *stateful_regs = getStatefulRegisterInstance();
 	OVS_COMPOSE_REGISTER_WRITE_CASES
-	//printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[1]);
+	printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[idx]);
 }
 
 static void

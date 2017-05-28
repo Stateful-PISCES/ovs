@@ -965,15 +965,17 @@ format_MODIFY_FIELD(const struct ofpact_set_field *sf OVS_UNUSED,
 struct ofp_action_register_read {
     ovs_be16 type;
     ovs_be16 len;
+    int idx;
 
-    uint8_t pad[4];
+    uint8_t pad[8];
 };
-OFP_ASSERT(sizeof(struct ofp_action_register_read) == 8);
+OFP_ASSERT(sizeof(struct ofp_action_register_read) == 16);
 
 static enum ofperr
 decode_ofpat_register_read(const struct ofp_action_register_read *a,
                           bool may_mask, struct ofpbuf *ofpacts)
 {
+    printf("\n*********** DECODING REGISTER_READ %d*************\n", a->idx);
     struct ofpact_register_read *rr;
     enum ofperr error;
     struct ofpbuf b;
@@ -984,6 +986,7 @@ decode_ofpat_register_read(const struct ofp_action_register_read *a,
     ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
     error = nx_pull_entry(&b, &rr->field, &rr->value,
                           may_mask ? &rr->mask : NULL);
+    rr->idx = a->idx;
     if (error) {
         return (error == OFPERR_OFPBMC_BAD_MASK
                 ? OFPERR_OFPBAC_BAD_SET_MASK
@@ -1029,6 +1032,7 @@ encode_REGISTER_READ(const struct ofpact_register_read *rr,
         size_t start_ofs = out->size;
 
         a = put_OFPAT_REGISTER_READ(out);
+	a->idx = rr->idx;
         out->size = out->size - sizeof a->pad;
         nx_put_entry(out, rr->field->id, ofp_version, &rr->value, &rr->mask);
         pad_ofpat(out, start_ofs);
@@ -1040,29 +1044,47 @@ register_read_parse__(char *arg, struct ofpbuf *ofpacts,
                      enum ofputil_protocol *usable_protocols)
 {
     struct ofpact_register_read *rr = ofpact_put_REGISTER_READ(ofpacts);
-    char *value;
     char *delim;
     char *key;
     const struct mf_field *mf;
     char *error;
+    char *sreg_idx;
+    int idx;
+    int err;
+    char *tail;
 
-    // TODO: For now, we just assume the register that
-    // REGISTER_READ is reading from so it is not specified
-    // in the flow table rules. Only the field being modified
-    // is specified in format: register_read:field.
-    // This will change...
-
-    //value = arg;
-    //delim = strstr(arg, "->");
-    //if (!delim) {
-    //    return xasprintf("%s: missing `->'", arg);
-    //}
-    //if (strlen(delim) <= strlen("->")) {
-    //    return xasprintf("%s: missing field name following `->'", arg);
-    //}
-
-    //key = delim + strlen("->");
-    key = arg;
+    
+    // Get the index of the state register to read from
+    delim = strstr(arg, "sreg");
+    if (!delim) {
+        return xasprintf("%s: missing state register to read from", arg);
+    }
+    if (strlen(delim) <= strlen("sreg")) {
+        return xasprintf("%s: missing index following sreg", arg);
+    }
+    sreg_idx = delim + strlen("sreg");
+   
+    // Parse the index and set the index in the ofpact struct
+    err = parse_int_string(sreg_idx, (uint8_t*)(&idx), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_idx, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_idx);
+    }
+    rr->idx = ntohl(idx);
+    
+    // Get the field to store data into
+    delim = strstr(arg, "->");
+    if (!delim) {
+        return xasprintf("%s: missing `->'", arg);
+    }
+    if (strlen(delim) <= strlen("->")) {
+        return xasprintf("%s: missing field name following `->'", arg);
+    }
+    key = delim + strlen("->");
+  
+    // Parse the field and store it in the ofpact struct. Initialize
+    // the value and mask as well.
     mf = mf_from_name(key);
     if (!mf) {
         return xasprintf("%s is not a valid OXM field name", key);
@@ -1071,8 +1093,10 @@ register_read_parse__(char *arg, struct ofpbuf *ofpacts,
         return xasprintf("%s is read-only", key);
     }
     rr->field = mf;
-
+    memset(&rr->value, 0, mf->n_bytes);
+    memset(&rr->mask, 0, mf->n_bytes);
     *usable_protocols &= mf->usable_protocols_exact;
+    
     return NULL;
 }
 
@@ -1116,9 +1140,9 @@ decode_ofpat_register_write(const struct ofp_action_register_write *a,
     rw = ofpact_put_REGISTER_WRITE(ofpacts);
 
     ofpbuf_use_const(&b, a, ntohs(a->len));
-    ofpbuf_pull(&b, a);
+    ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
     rw->idx = a->idx;
-    rw->test_value = a->value;
+    rw->value = a->value;
      
     return 0;
 }
@@ -1139,13 +1163,12 @@ encode_REGISTER_WRITE(const struct ofpact_register_write *rw,
         size_t start_ofs = out->size;
 
         a = put_OFPAT_REGISTER_WRITE(out);
-        //out->size = out->size - sizeof a->pad;
+        out->size = out->size - sizeof a->pad;
 	a->idx = rw->idx;
-	a->value = rw->test_value;
+	a->value = rw->value;
         ofpbuf_put(out, &rw, sizeof(struct ofpact_register_write));
         pad_ofpat(out, start_ofs);
     }
-    printf("\n*********** ENCODING REGISTER_WRITE *************\n");
 }
 
 static char * OVS_WARN_UNUSED_RESULT
@@ -1153,50 +1176,50 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
                      enum ofputil_protocol *usable_protocols)
 {
     struct ofpact_register_write *rw = ofpact_put_REGISTER_WRITE(ofpacts);
-    char *value;
     char *delim;
-    char *key;
-    const struct mf_field *mf;
-    char *error;
+    char *sreg_idx;
+    char *tail;
+    int err;
+    int value;
+    int idx;
 
-    value = arg;
-    delim = strstr(arg, "->");
+    // Get the index of the state register to write to
+    delim = strstr(arg, "->sreg");
     if (!delim) {
-        return xasprintf("%s: missing `->'", arg);
+        return xasprintf("%s: missing `->sreg'", arg);
     }
-    if (strlen(delim) <= strlen("->")) {
-        return xasprintf("%s: missing field name following `->'", arg);
+    if (strlen(delim) <= strlen("->sreg")) {
+        return xasprintf("%s: missing index following `->sreg'", arg);
     }
-
-
-    key = delim + strlen("->");
-
-    // TODO: Using the reg0 field for now. Maybe a new state reg field 
-    // should be used...
-    //mf = mf_from_name(key);
-    //if (!mf) {
-    //    return xasprintf("%s is not a valid OXM field name", key);
-    //}
-    //if (!mf->writable) {
-    //    return xasprintf("%s is read-only", key);
-    //}
-    //rw->field = mf;
-    //delim[0] = '\0';
-    //error = mf_parse(mf, value, &rw->value, &rw->mask);
-    //if (error) {
-    //    return error;
-    //}
-
-    //if (!mf_is_value_valid(mf, &rw->value)) {
-    //    return xasprintf("%s is not a valid value for field %s", value, key);
-    //}
-    rw->idx = 101;
-    rw->test_value = 15;
-    //*usable_protocols &= mf->usable_protocols_exact;
+    sreg_idx = delim + strlen("->sreg");
     
-    printf("\n*********** PARSING REGISTER_WRITE *************\n");
+    // Parse the value and set the value in the ofpact struct
+    err = parse_int_string(arg, (uint8_t*)(&value), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", arg, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", arg);
+    }
+    
+    rw->value = ntohl(value);
+ 
+
+    // Parse the index and set the index in the ofpact struct
+    err = parse_int_string(sreg_idx, (uint8_t*)(&idx), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_idx, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_idx);
+    }
+
+    rw->idx = ntohl(idx);
+    
+    
 
     return NULL;
+
+
+    
 }
 
 static char * OVS_WARN_UNUSED_RESULT
@@ -1215,7 +1238,6 @@ format_REGISTER_WRITE(const struct ofpact_register_write *rw, struct ds *s)
     ds_put_cstr(s, "register_write:");
     //mf_format(rw->field, &rw->value, &rw->mask, s);
     //ds_put_format(s, "->%s", rw->field->name);
-    printf("\n*********** FORMATTING REGISTER_WRITE *************\n");
 }
 
 
