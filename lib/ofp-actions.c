@@ -975,7 +975,6 @@ static enum ofperr
 decode_ofpat_register_read(const struct ofp_action_register_read *a,
                           bool may_mask, struct ofpbuf *ofpacts)
 {
-    printf("\n*********** DECODING REGISTER_READ %d*************\n", a->idx);
     struct ofpact_register_read *rr;
     enum ofperr error;
     struct ofpbuf b;
@@ -1094,7 +1093,7 @@ register_read_parse__(char *arg, struct ofpbuf *ofpacts,
     }
     rr->field = mf;
     memset(&rr->value, 0, mf->n_bytes);
-    memset(&rr->mask, 0, mf->n_bytes);
+    memset(&rr->mask, 0xff, mf->n_bytes);
     *usable_protocols &= mf->usable_protocols_exact;
     
     return NULL;
@@ -1201,7 +1200,7 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
         return xasprintf("%s: bad syntax", arg);
     }
     
-    rw->value = ntohl(value);
+    rw->value = value;
  
 
     // Parse the index and set the index in the ofpact struct

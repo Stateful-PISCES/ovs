@@ -4554,10 +4554,14 @@ compose_register_read(struct xlate_ctx *ctx,
 	//		OVS_NOT_REACHED();
 	//	}
 	//}
+	
+
 	int *stateful_regs = getStatefulRegisterInstance();
 	OVS_COMPOSE_REGISTER_READ_CASES
-	printf("\n****************** REGISTER READ IDX %d****************\n", register_read->idx);
-	printf("\n****************** REGISTER READ VAL %d****************\n", stateful_regs[idx]);
+	//printf("\n****************** REGISTER READ IDX %d****************\n", register_read->idx);
+	//printf("\n****************** REGISTER READ VAL %d****************\n", stateful_regs[idx]);
+	
+        //printf("\n****************** FLOW_REG AFTER %d****************\n", flow->regs[mf->id - MFF_REG0]);
 }
 
 // @P4:
@@ -4576,11 +4580,11 @@ compose_register_write(struct xlate_ctx *ctx,
 	int idx = register_write->idx;
 
 	
-	printf("\n****************** REGISTER WRITE IDX %d****************\n", register_write->idx);
+	//printf("\n****************** REGISTER WRITE IDX %d****************\n", register_write->idx);
 
 	int *stateful_regs = getStatefulRegisterInstance();
 	OVS_COMPOSE_REGISTER_WRITE_CASES
-	printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[idx]);
+	//printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[idx]);
 }
 
 static void
