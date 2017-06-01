@@ -778,6 +778,7 @@ struct ofpact_register_read {
     union mf_value value;
     union mf_value mask;
     int idx;
+    int register_id;
 };
 
 // @P4:
@@ -787,6 +788,7 @@ struct ofpact_register_write {
     struct ofpact ofpact;
     int value;
     int idx;
+    int register_id;
 };
 
 // @P4:

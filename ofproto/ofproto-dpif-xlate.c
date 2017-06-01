@@ -4545,6 +4545,7 @@ compose_register_read(struct xlate_ctx *ctx,
 	const union mf_value *value = &register_read->value;
 	const union mf_value *mask = &register_read->mask;
 	int idx = register_read->idx;
+	int register_id = register_read->register_id;
 
 	//mf_mask_field_and_prereqs(mf, wc);
 	//if (mf_are_prereqs_ok(mf, flow)) {
@@ -4580,6 +4581,7 @@ compose_register_write(struct xlate_ctx *ctx,
 
 	int *value = &register_write->value;
 	int idx = register_write->idx;
+	int register_id = register_write->register_id;
 
 	
 	//printf("\n****************** REGISTER WRITE IDX %d****************\n", register_write->idx);

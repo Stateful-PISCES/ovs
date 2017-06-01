@@ -972,8 +972,9 @@ struct ofp_action_register_read {
     ovs_be16 type;
     ovs_be16 len;
     int idx;
+    int register_id;
 
-    uint8_t pad[8];
+    uint8_t pad[4];
 };
 OFP_ASSERT(sizeof(struct ofp_action_register_read) == 16);
 
@@ -992,6 +993,7 @@ decode_ofpat_register_read(const struct ofp_action_register_read *a,
     error = nx_pull_entry(&b, &rr->field, &rr->value,
                           may_mask ? &rr->mask : NULL);
     rr->idx = a->idx;
+    rr->register_id = a->register_id;
     if (error) {
         return (error == OFPERR_OFPBMC_BAD_MASK
                 ? OFPERR_OFPBAC_BAD_SET_MASK
@@ -1038,6 +1040,7 @@ encode_REGISTER_READ(const struct ofpact_register_read *rr,
 
         a = put_OFPAT_REGISTER_READ(out);
 	a->idx = rr->idx;
+	a->register_id = rr->register_id;
         out->size = out->size - sizeof a->pad;
         nx_put_entry(out, rr->field->id, ofp_version, &rr->value, &rr->mask);
         pad_ofpat(out, start_ofs);
@@ -1129,10 +1132,11 @@ struct ofp_action_register_write {
     ovs_be16 len;
     int idx;
     int value;
+    int register_id;
 
-    uint8_t pad[4];
+    uint8_t pad[8];
 };
-OFP_ASSERT(sizeof(struct ofp_action_register_write) == 16);
+OFP_ASSERT(sizeof(struct ofp_action_register_write) == 24);
 
 static enum ofperr
 decode_ofpat_register_write(const struct ofp_action_register_write *a,
@@ -1148,6 +1152,7 @@ decode_ofpat_register_write(const struct ofp_action_register_write *a,
     ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
     rw->idx = a->idx;
     rw->value = a->value;
+    rw->register_id = a->register_id;
      
     return 0;
 }
@@ -1171,6 +1176,7 @@ encode_REGISTER_WRITE(const struct ofpact_register_write *rw,
         out->size = out->size - sizeof a->pad;
 	a->idx = rw->idx;
 	a->value = rw->value;
+	a->register_id = rw->register_id;
         ofpbuf_put(out, &rw, sizeof(struct ofpact_register_write));
         pad_ofpat(out, start_ofs);
     }
@@ -1333,7 +1339,7 @@ parse_LOCK(char *arg, struct ofpbuf *ofpacts,
 }
 
 static void
-format_LOCK(const struct ofpact_register_write *rw, struct ds *s)
+format_LOCK(const struct ofpact_lock *lock, struct ds *s)
 {
     ds_put_cstr(s, "lock:");
 }
@@ -1426,7 +1432,7 @@ parse_UNLOCK(char *arg, struct ofpbuf *ofpacts,
 }
 
 static void
-format_UNLOCK(const struct ofpact_register_write *rw, struct ds *s)
+format_UNLOCK(const struct ofpact_unlock *unlock, struct ds *s)
 {
     ds_put_cstr(s, "unlock:");
 }
