@@ -1056,23 +1056,36 @@ register_read_parse__(char *arg, struct ofpbuf *ofpacts,
     char *key;
     const struct mf_field *mf;
     char *error;
+    char *sreg_id;
     char *sreg_idx;
+    int id;
     int idx;
     int err;
     char *tail;
 
     
-    // Get the index of the state register to read from
-    delim = strstr(arg, "sreg");
+    // Get the id and index of the state register to read from
+    delim = strstr(arg, "sreg[");
     if (!delim) {
         return xasprintf("%s: missing state register to read from", arg);
     }
     if (strlen(delim) <= strlen("sreg")) {
         return xasprintf("%s: missing index following sreg", arg);
     }
-    sreg_idx = delim + strlen("sreg");
+    sreg_id = delim + strlen("sreg[");
    
+    // Parse the id of the register and set it in the ofpact struct
+    err = parse_int_string(sreg_id, (uint8_t*)(&id), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_id, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_id);
+    }
+    rr->register_id = ntohl(id);
+
+    
     // Parse the index and set the index in the ofpact struct
+    sreg_idx = tail + strlen("]["); 
     err = parse_int_string(sreg_idx, (uint8_t*)(&idx), 4, &tail);
     if (err == ERANGE) {
         return xasprintf("%s: too large for %u-byte field", sreg_idx, 4);
@@ -1188,21 +1201,23 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
 {
     struct ofpact_register_write *rw = ofpact_put_REGISTER_WRITE(ofpacts);
     char *delim;
+    char *sreg_id;
     char *sreg_idx;
     char *tail;
     int err;
     int value;
+    int id;
     int idx;
 
-    // Get the index of the state register to write to
-    delim = strstr(arg, "->sreg");
+    // Get the id and index of the state register to write to
+    delim = strstr(arg, "->sreg[");
     if (!delim) {
-        return xasprintf("%s: missing `->sreg'", arg);
+        return xasprintf("%s: missing `->sreg['", arg);
     }
     if (strlen(delim) <= strlen("->sreg")) {
-        return xasprintf("%s: missing index following `->sreg'", arg);
+        return xasprintf("%s: missing index following `->sreg['", arg);
     }
-    sreg_idx = delim + strlen("->sreg");
+    sreg_id = delim + strlen("->sreg[");
     
     // Parse the value and set the value in the ofpact struct
     err = parse_int_string(arg, (uint8_t*)(&value), 4, &tail);
@@ -1214,8 +1229,18 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
     
     rw->value = value;
  
+    // Parse the id of the register and set it in the ofpact struct
+    err = parse_int_string(sreg_id, (uint8_t*)(&id), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_id, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_id);
+    }
+    rw->register_id = ntohl(id);
+
 
     // Parse the index and set the index in the ofpact struct
+    sreg_idx = tail + strlen("]["); 
     err = parse_int_string(sreg_idx, (uint8_t*)(&idx), 4, &tail);
     if (err == ERANGE) {
         return xasprintf("%s: too large for %u-byte field", sreg_idx, 4);
