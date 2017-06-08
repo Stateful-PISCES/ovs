@@ -784,11 +784,20 @@ struct ofpact_register_read {
 // @P4:
 /* OFPACT_REGISTER_WRITE.
  */
+
+enum rw_value_type {
+    LITERAL_VALUE = 0,
+    FIELD_VALUE
+};
+
 struct ofpact_register_write {
     struct ofpact ofpact;
-    int value;
+    enum mf_field_id mf_id;        /* MFF_*. */
+    struct mf_field *field;
+    int literal_value;
     int idx;
     int register_id;
+    enum rw_value_type value_type;
 };
 
 // @P4:

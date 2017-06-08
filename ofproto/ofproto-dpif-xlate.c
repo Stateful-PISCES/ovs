@@ -4607,7 +4607,26 @@ compose_register_write(struct xlate_ctx *ctx,
 			ctx->odp_actions, ctx->wc,
 			use_masked);
 
-	int *value = &register_write->value;
+	
+	const int *value;
+	if (register_write->value_type == FIELD_VALUE)
+	{
+		// NOTE: This is a hack because the mf_field in register_write
+		// is not holding its value.
+		//register_write->field->id = register_write->mf_id;
+		struct mf_field tmp_field;
+		tmp_field.id = register_write->mf_id;
+		
+		union mf_value field_value;
+		mf_get_value(&tmp_field, flow, &field_value);
+		
+		value = &field_value.be32;
+		
+	}
+	else
+	{
+		value = &register_write->literal_value;
+	}
 	int idx = register_write->idx;
 	int register_id = register_write->register_id;
 

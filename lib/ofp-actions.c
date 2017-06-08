@@ -1140,16 +1140,21 @@ format_REGISTER_READ(const struct ofpact_register_read *rr, struct ds *s)
 }
 
 /* @P4: */
+/* NOTE: Keeping the mf_id in this struct is a temporary hack because
+ * the field struct is not holding its value properly */
 struct ofp_action_register_write {
     ovs_be16 type;
     ovs_be16 len;
     int idx;
-    int value;
+    int literal_value;
     int register_id;
+    struct mf_field *field;
+    enum mf_field_id mf_id;        /* MFF_*. */
+    enum rw_value_type value_type;
 
     uint8_t pad[8];
 };
-OFP_ASSERT(sizeof(struct ofp_action_register_write) == 24);
+OFP_ASSERT(sizeof(struct ofp_action_register_write) == 40);
 
 static enum ofperr
 decode_ofpat_register_write(const struct ofp_action_register_write *a,
@@ -1164,8 +1169,11 @@ decode_ofpat_register_write(const struct ofp_action_register_write *a,
     ofpbuf_use_const(&b, a, ntohs(a->len));
     ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
     rw->idx = a->idx;
-    rw->value = a->value;
+    rw->literal_value = a->literal_value;
     rw->register_id = a->register_id;
+    rw->value_type = a->value_type;
+    rw->field = a->field;
+    rw->mf_id = a->mf_id;
      
     return 0;
 }
@@ -1188,8 +1196,11 @@ encode_REGISTER_WRITE(const struct ofpact_register_write *rw,
         a = put_OFPAT_REGISTER_WRITE(out);
         out->size = out->size - sizeof a->pad;
 	a->idx = rw->idx;
-	a->value = rw->value;
+	a->literal_value = rw->literal_value;
 	a->register_id = rw->register_id;
+	a->value_type = rw->value_type;
+	a->field = rw->field;
+	a->mf_id = rw->mf_id;
         ofpbuf_put(out, &rw, sizeof(struct ofpact_register_write));
         pad_ofpat(out, start_ofs);
     }
@@ -1204,11 +1215,69 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
     char *sreg_id;
     char *sreg_idx;
     char *tail;
+    char *value;
+    char key[50];
+    const struct mf_field *mf;
     int err;
-    int value;
+    int literal_value;
     int id;
     int idx;
+    int res;
 
+
+    // Get the type of the value to write
+    if (!strncmp(arg, "field", 5))
+    {
+	rw->value_type = FIELD_VALUE;
+	rw->literal_value = 0;
+    	delim = strstr(arg, "field(");
+    	value = delim + strlen("field(");
+    }
+    else if (!strncmp(arg, "literal", 7))
+    {
+	rw->value_type = LITERAL_VALUE;
+	rw->field = NULL;
+    	delim = strstr(arg, "literal(");
+    	value = delim + strlen("literal(");
+    }
+
+    if (!delim) {
+        return xasprintf("%s: missing `type('", arg);
+    }
+    if (strlen(delim) <= strlen("(")) {
+        return xasprintf("%s: missing value following `type('", arg);
+    }
+		
+    // Parse the value and set the value in the ofpact struct
+    if (rw->value_type == LITERAL_VALUE)
+    {
+	    err = parse_int_string(value, (uint8_t*)(&literal_value), 4, &tail);
+	    if (err == ERANGE) {
+		return xasprintf("%s: too large for %u-byte field", arg, 4);
+	    } else if (err != 0) {
+		return xasprintf("%s: bad syntax", arg);
+	    }
+	    rw->literal_value = literal_value;
+    }
+    else if(rw->value_type == FIELD_VALUE)
+    {
+	    // Parse the field and store it in the ofpact struct.
+	    delim = strstr(value, ")");
+	    if (!delim) {
+		return xasprintf("%s: missing `)'", arg);
+	    }
+	    unsigned int len = (unsigned int)(delim - value);
+	    strncpy(key, value, len);
+	    key[len] = '\0';
+	    mf = mf_from_name(key);
+	    if (!mf) {
+		return xasprintf("%s is not a valid OXM field name", key);
+	    }
+	    rw->field = mf;
+	    rw->mf_id = mf->id;
+	    *usable_protocols &= mf->usable_protocols_exact;
+    }
+ 
     // Get the id and index of the state register to write to
     delim = strstr(arg, "->sreg[");
     if (!delim) {
@@ -1219,16 +1288,6 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
     }
     sreg_id = delim + strlen("->sreg[");
     
-    // Parse the value and set the value in the ofpact struct
-    err = parse_int_string(arg, (uint8_t*)(&value), 4, &tail);
-    if (err == ERANGE) {
-        return xasprintf("%s: too large for %u-byte field", arg, 4);
-    } else if (err != 0) {
-        return xasprintf("%s: bad syntax", arg);
-    }
-    
-    rw->value = value;
- 
     // Parse the id of the register and set it in the ofpact struct
     err = parse_int_string(sreg_id, (uint8_t*)(&id), 4, &tail);
     if (err == ERANGE) {
@@ -1237,7 +1296,6 @@ register_write_parse__(char *arg, struct ofpbuf *ofpacts,
         return xasprintf("%s: bad syntax", sreg_id);
     }
     rw->register_id = ntohl(id);
-
 
     // Parse the index and set the index in the ofpact struct
     sreg_idx = tail + strlen("]["); 
