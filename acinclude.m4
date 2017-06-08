@@ -240,6 +240,7 @@ AC_DEFUN([OVS_CHECK_DPDK], [
 AC_DEFUN([OVS_CHECK_P4], [
   AC_ARG_VAR([p4inputfile], [Specify the p4 input file])
   AC_ARG_VAR([p4outputdir], [Specify the p4 output directory])
+  AC_ARG_VAR([p4frargfile], [Specify the p4 flow rules argument file])
   AS_IF([test -z "$p4inputfile"],
         [AC_MSG_ERROR([missing arguments for p4 input file])])
   AS_IF([test ! -e "$p4inputfile"],
@@ -247,9 +248,10 @@ AC_DEFUN([OVS_CHECK_P4], [
   AS_IF([test -z "$p4outputdir"],
         [AC_MSG_ERROR([missing arguments for p4 output dir])])
   AS_IF([test -d "$p4outputdir"], [rm -rf $p4outputdir], [])
-
+  
   mkdir -p $p4outputdir
-  p4c-behavioral $p4inputfile --gen-dir $p4outputdir/temp --plugin ovs
+  AS_IF([test -z "$p4frargfile"], [p4c-behavioral $p4inputfile --gen-dir $p4outputdir/temp --plugin ovs],
+        [p4c-behavioral $p4inputfile --gen-dir $p4outputdir/temp --plugin ovs --flow-rules-argfile $p4frargfile])
   mv $p4outputdir/temp/plugin/ovs/inc/* $p4outputdir
   mv $p4outputdir/temp/dict.pickle $p4outputdir
   rm -rf $p4outputdir/temp

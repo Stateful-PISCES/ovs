@@ -62,6 +62,8 @@
 // @P4:
 #include "p4/src/action/ofproto/ofproto-dpif-xlate.h"
 #include "../lib/ofp-actions.h"
+OVS_P4_REGISTERS
+OVS_P4_ACTION_LOCKS
 
 COVERAGE_DEFINE(xlate_actions);
 COVERAGE_DEFINE(xlate_actions_oversize);
@@ -327,6 +329,31 @@ static int* getStatefulRegisterInstance()
     return instance;
 };
 
+static struct p4_registers *get_p4_registers_instance()
+{
+    static struct p4_registers *p4_regs = NULL;
+
+    if(p4_regs == NULL)
+    {
+	      p4_regs = xzalloc(sizeof(struct p4_registers));
+        OVS_P4_REGISTERS_INIT
+    }
+
+    return p4_regs;
+};
+
+static struct p4_action_locks *get_p4_action_locks_instance()
+{
+    static struct p4_action_locks *p4_action_locks = NULL;
+
+    if(p4_action_locks == NULL)
+    {
+	      p4_action_locks = xzalloc(sizeof(struct p4_action_locks));
+        OVS_P4_ACTION_LOCKS_INIT
+    }
+
+    return p4_action_locks;
+};
 
 static void xlate_action_set(struct xlate_ctx *ctx);
 static void xlate_commit_actions(struct xlate_ctx *ctx);
@@ -4559,8 +4586,9 @@ compose_register_read(struct xlate_ctx *ctx,
 	//}
 	
 
-	int *stateful_regs = getStatefulRegisterInstance();
-	OVS_COMPOSE_REGISTER_READ_CASES
+//	int *stateful_regs = getStatefulRegisterInstance();
+  struct p4_registers *p4_regs = get_p4_registers_instance();
+	OVS_COMPOSE_P4_REGISTER_READ_CASES
 	//printf("\n****************** REGISTER READ IDX %d****************\n", register_read->idx);
 	//printf("\n****************** REGISTER READ VAL %d****************\n", stateful_regs[idx]);
 	
@@ -4586,8 +4614,9 @@ compose_register_write(struct xlate_ctx *ctx,
 	
 	//printf("\n****************** REGISTER WRITE IDX %d****************\n", register_write->idx);
 
-	int *stateful_regs = getStatefulRegisterInstance();
-	OVS_COMPOSE_REGISTER_WRITE_CASES
+//	int *stateful_regs = getStatefulRegisterInstance();
+  struct p4_registers *p4_regs = get_p4_registers_instance();
+	OVS_COMPOSE_P4_REGISTER_WRITE_CASES
 	//printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[idx]);
 }
 
@@ -4607,6 +4636,8 @@ compose_lock(struct xlate_ctx *ctx,
 
 	// TODO: ADD MACRO FROM P4C-BEHAVIORAL TO PERFORM LOCK.
 	// USE 'idx' AS THE INDEX OF THE LOCK.
+  struct p4_action_locks *p4_action_locks = get_p4_action_locks_instance();
+  OVS_COMPOSE_ACTION_LOCK_LOCK_CASES
 }
 
 // @P4:
@@ -4625,6 +4656,8 @@ compose_unlock(struct xlate_ctx *ctx,
         
 	// TODO: ADD MACRO FROM P4C-BEHAVIORAL TO PERFORM UNLOCK.
 	// USE 'idx' AS THE INDEX OF THE LOCK.
+  struct p4_action_locks *p4_action_locks = get_p4_action_locks_instance();
+  OVS_COMPOSE_ACTION_LOCK_UNLOCK_CASES
 }
 
 static void
