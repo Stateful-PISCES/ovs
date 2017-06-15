@@ -4587,13 +4587,18 @@ compose_register_read(struct xlate_ctx *ctx,
 	//	}
 	//}
 	
-
-//	int *stateful_regs = getStatefulRegisterInstance();
-  struct p4_registers *p4_regs = get_p4_registers_instance();
-	OVS_COMPOSE_P4_REGISTER_READ_CASES
-	//printf("\n****************** REGISTER READ IDX %d****************\n", register_read->idx);
-	//printf("\n****************** REGISTER READ VAL %d****************\n", stateful_regs[idx]);
+	//uint32_t tmp_val;
+	//int *stateful_regs = getStatefulRegisterInstance();
+        //memcpy(&tmp_val, &stateful_regs[idx], sizeof(uint32_t));
 	
+	//tmp_val = ntohl(tmp_val);
+        //memcpy(value, &tmp_val, sizeof(uint32_t));
+        //mf_set_flow_value_masked(mf, value, mask, flow);
+
+	struct p4_registers *p4_regs = get_p4_registers_instance();
+	OVS_COMPOSE_P4_REGISTER_READ_CASES
+	
+        //printf("\n****************** ETH SRC ADDR %08X****************\n", flow->_ethernet_.hdr.ethernet__srcAddr);
         //printf("\n****************** FLOW_REG AFTER %d****************\n", flow->regs[mf->id - MFF_REG0]);
 }
 

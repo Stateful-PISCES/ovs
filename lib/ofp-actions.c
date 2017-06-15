@@ -1478,7 +1478,6 @@ register_update_parse__(char *arg, struct ofpbuf *ofpacts,
 	    *usable_protocols &= mf->usable_protocols_exact;
     }
     
-	printf("\n*************** lv: %d**************\n", ru->literal_value);
  
     // Get the id and index of the state register to write to
     delim = strstr(arg, "->sreg[");
@@ -1539,7 +1538,6 @@ register_update_parse__(char *arg, struct ofpbuf *ofpacts,
 	ru->operation_type = UPDATE_DIV;
     }
 
-    printf("\n*************** op: %d**************\n", ru->operation_type);
 
     return NULL;
 
