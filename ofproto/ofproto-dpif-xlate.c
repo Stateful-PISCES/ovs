@@ -324,6 +324,7 @@ static int* getStatefulRegisterInstance()
     if(instance == NULL)
     {
 	instance = xzalloc_cacheline(sizeof(int) * 4);
+	instance[1] = 0;
     }
 
     return instance;
@@ -4159,6 +4160,7 @@ recirc_unroll_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 		case OFPACT_ADD_TO_FIELD:
 		case OFPACT_REGISTER_READ:
 		case OFPACT_REGISTER_WRITE:
+		case OFPACT_REGISTER_UPDATE:
 		case OFPACT_LOCK:
 		case OFPACT_UNLOCK:
 		case OFPACT_MODIFY_FIELD:
@@ -4585,13 +4587,18 @@ compose_register_read(struct xlate_ctx *ctx,
 	//	}
 	//}
 	
-
-//	int *stateful_regs = getStatefulRegisterInstance();
-  struct p4_registers *p4_regs = get_p4_registers_instance();
-	OVS_COMPOSE_P4_REGISTER_READ_CASES
-	//printf("\n****************** REGISTER READ IDX %d****************\n", register_read->idx);
-	//printf("\n****************** REGISTER READ VAL %d****************\n", stateful_regs[idx]);
+	//uint32_t tmp_val;
+	//int *stateful_regs = getStatefulRegisterInstance();
+        //memcpy(&tmp_val, &stateful_regs[idx], sizeof(uint32_t));
 	
+	//tmp_val = ntohl(tmp_val);
+        //memcpy(value, &tmp_val, sizeof(uint32_t));
+        //mf_set_flow_value_masked(mf, value, mask, flow);
+
+	struct p4_registers *p4_regs = get_p4_registers_instance();
+	OVS_COMPOSE_P4_REGISTER_READ_CASES
+	
+        //printf("\n****************** ETH SRC ADDR %08X****************\n", flow->_ethernet_.hdr.ethernet__srcAddr);
         //printf("\n****************** FLOW_REG AFTER %d****************\n", flow->regs[mf->id - MFF_REG0]);
 }
 
@@ -4641,6 +4648,74 @@ compose_register_write(struct xlate_ctx *ctx,
 
 // @P4:
 static void
+compose_register_update(struct xlate_ctx *ctx,
+                   const struct ofpact_register_update *register_update)
+{
+	struct flow_wildcards *wc = ctx->wc;
+	struct flow *flow = &ctx->xin->flow;
+	bool use_masked = ctx->xbridge->support.masked_set_action;
+	ctx->xout->slow |= commit_odp_actions(&ctx->xin->flow, &ctx->base_flow,
+			ctx->odp_actions, ctx->wc,
+			use_masked);
+
+	
+	int register_value;
+	int value;
+	if (register_update->value_type == LITERAL_VALUE)
+	{
+		value = ntohl(register_update->literal_value);
+	}
+	else
+	{
+		//TODO: Add in parsing for field value
+		value = 0;
+	}
+	int idx = register_update->idx;
+	int register_id = register_update->register_id;
+
+	
+
+	int *stateful_regs = getStatefulRegisterInstance();
+
+        memcpy(&register_value, &stateful_regs[idx], sizeof(uint32_t));
+	
+
+	register_value = ntohl(register_value);
+		
+	//printf("\n****************** REGISTER UPDATED VAL %d****************\n", register_value);
+	//printf("\n****************** REGISTER UP VAL %d****************\n", value);
+
+	if (register_update->operation_type == UPDATE_ADD)
+	{
+		register_value = register_value + value;
+	}
+	else if (register_update->operation_type == UPDATE_SUB)
+	{
+		register_value = register_value - value;
+	}
+	else if (register_update->operation_type == UPDATE_MULT)
+	{
+		register_value = register_value * value;
+	}
+	else if (register_update->operation_type == UPDATE_DIV)
+	{
+		register_value = register_value / value;
+	}
+	else
+	{
+		// TODO: Default action
+	}
+	
+	register_value = htonl(register_value);
+        memcpy(&stateful_regs[idx], &register_value, sizeof(uint32_t));
+	
+
+  	// struct p4_registers *p4_regs = get_p4_registers_instance();
+	//OVS_COMPOSE_P4_REGISTER_WRITE_CASES
+}
+
+// @P4:
+static void
 compose_lock(struct xlate_ctx *ctx,
                    const struct ofpact_lock *lock)
 {
@@ -4652,6 +4727,9 @@ compose_lock(struct xlate_ctx *ctx,
 			use_masked);
 
 	int idx = lock->idx;
+	int register_id = lock->register_id;
+
+	//printf("\n***********ID:%d | IDX:%d **********\n", register_id, idx);
 
 	// TODO: ADD MACRO FROM P4C-BEHAVIORAL TO PERFORM LOCK.
 	// USE 'idx' AS THE INDEX OF THE LOCK.
@@ -4673,6 +4751,9 @@ compose_unlock(struct xlate_ctx *ctx,
 			use_masked);
 
 	int idx = unlock->idx;
+	int register_id = unlock->register_id;
+	
+	//printf("\n***********ID:%d | IDX:%d **********\n", register_id, idx);
         
 	// TODO: ADD MACRO FROM P4C-BEHAVIORAL TO PERFORM UNLOCK.
 	// USE 'idx' AS THE INDEX OF THE LOCK.
@@ -5128,6 +5209,14 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 			break;
 		}
 		
+		// @P4:
+		case OFPACT_REGISTER_UPDATE: {
+			const struct ofpact_register_update *register_update;
+			register_update = ofpact_get_REGISTER_UPDATE(a);
+			compose_register_update(ctx, register_update);
+			break;
+		}
+
 		// @P4:
 		case OFPACT_LOCK: {
 			const struct ofpact_lock *lock;

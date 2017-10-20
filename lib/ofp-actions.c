@@ -334,10 +334,13 @@ enum ofp_raw_action_type {
 	/* OF1.5+(39): struct ofp_action_register_write, ... */
 	OFPAT_RAW_REGISTER_WRITE,
 	
-	/* OF1.5+(40): struct ofp_action_lock, ... */
+	/* OF1.5+(40): struct ofp_action_register_update, ... */
+	OFPAT_RAW_REGISTER_UPDATE,
+	
+	/* OF1.5+(41): struct ofp_action_lock, ... */
 	OFPAT_RAW_LOCK,
 	
-	/* OF1.5+(41): struct ofp_action_unlock, ... */
+	/* OF1.5+(42): struct ofp_action_unlock, ... */
 	OFPAT_RAW_UNLOCK,
 
 #include "p4/src/action/types.h" // @P4:
@@ -1335,12 +1338,239 @@ format_REGISTER_WRITE(const struct ofpact_register_write *rw, struct ds *s)
 }
 
 /* @P4: */
+/* NOTE: Keeping the mf_id in this struct is a temporary hack because
+ * the field struct is not holding its value properly */
+struct ofp_action_register_update {
+    ovs_be16 type;
+    ovs_be16 len;
+    int idx;
+    int literal_value;
+    int register_id;
+    struct mf_field *field;
+    enum mf_field_id mf_id;        /* MFF_*. */
+    enum rw_value_type value_type;
+    enum ru_operation_type operation_type;
+
+    uint8_t pad[4];
+};
+OFP_ASSERT(sizeof(struct ofp_action_register_update) == 40);
+
+static enum ofperr
+decode_ofpat_register_update(const struct ofp_action_register_update *a,
+                          bool may_mask, struct ofpbuf *ofpacts)
+{
+    struct ofpact_register_update *ru;
+    enum ofperr error;
+    struct ofpbuf b;
+
+    ru = ofpact_put_REGISTER_UPDATE(ofpacts);
+
+    ofpbuf_use_const(&b, a, ntohs(a->len));
+    ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
+    ru->idx = a->idx;
+    ru->literal_value = a->literal_value;
+    ru->register_id = a->register_id;
+    ru->value_type = a->value_type;
+    ru->field = a->field;
+    ru->mf_id = a->mf_id;
+     
+    return 0;
+}
+
+static enum ofperr
+decode_OFPAT_RAW_REGISTER_UPDATE(const struct ofp_action_register_update *a,
+                              struct ofpbuf *ofpacts)
+{
+    return decode_ofpat_register_update(a, true, ofpacts);
+}
+
+static void
+encode_REGISTER_UPDATE(const struct ofpact_register_update *ru,
+                    enum ofp_version ofp_version, struct ofpbuf *out)
+{
+    if (ofp_version >= OFP15_VERSION) {
+        struct ofp_action_register_update *a OVS_UNUSED;
+        size_t start_ofs = out->size;
+
+        a = put_OFPAT_REGISTER_UPDATE(out);
+        out->size = out->size - sizeof a->pad;
+	a->idx = ru->idx;
+	a->literal_value = ru->literal_value;
+	a->register_id = ru->register_id;
+	a->value_type = ru->value_type;
+	a->field = ru->field;
+	a->mf_id = ru->mf_id;
+        ofpbuf_put(out, &ru, sizeof(struct ofpact_register_update));
+        pad_ofpat(out, start_ofs);
+    }
+}
+
+static char * OVS_WARN_UNUSED_RESULT
+register_update_parse__(char *arg, struct ofpbuf *ofpacts,
+                     enum ofputil_protocol *usable_protocols)
+{
+    struct ofpact_register_update *ru = ofpact_put_REGISTER_UPDATE(ofpacts);
+    char *delim;
+    char *sreg_id;
+    char *sreg_idx;
+    char *tail;
+    char *value;
+    char *operation;
+    char key[50];
+    const struct mf_field *mf;
+    int err;
+    int literal_value;
+    int id;
+    int idx;
+    int res;
+
+
+    // Get the type of the value to write
+    if (!strncmp(arg, "field", 5))
+    {
+	ru->value_type = FIELD_VALUE;
+	ru->literal_value = 0;
+    	delim = strstr(arg, "field(");
+    	value = delim + strlen("field(");
+    }
+    else if (!strncmp(arg, "literal", 7))
+    {
+	ru->value_type = LITERAL_VALUE;
+	ru->field = NULL;
+    	delim = strstr(arg, "literal(");
+    	value = delim + strlen("literal(");
+    }
+
+    if (!delim) {
+        return xasprintf("%s: missing `type('", arg);
+    }
+    if (strlen(delim) <= strlen("(")) {
+        return xasprintf("%s: missing value following `type('", arg);
+    }
+		
+    // Parse the value and set the value in the ofpact struct
+    if (ru->value_type == LITERAL_VALUE)
+    {
+	    err = parse_int_string(value, (uint8_t*)(&literal_value), 4, &tail);
+	    if (err == ERANGE) {
+		return xasprintf("%s: too large for %u-byte field", arg, 4);
+	    } else if (err != 0) {
+		return xasprintf("%s: bad syntax", arg);
+	    }
+	    ru->literal_value = literal_value;
+    }
+    else if(ru->value_type == FIELD_VALUE)
+    {
+	    // Parse the field and store it in the ofpact struct.
+	    delim = strstr(value, ")");
+	    if (!delim) {
+		return xasprintf("%s: missing `)'", arg);
+	    }
+	    unsigned int len = (unsigned int)(delim - value);
+	    strncpy(key, value, len);
+	    key[len] = '\0';
+	    mf = mf_from_name(key);
+	    if (!mf) {
+		return xasprintf("%s is not a valid OXM field name", key);
+	    }
+	    ru->field = mf;
+	    ru->mf_id = mf->id;
+	    *usable_protocols &= mf->usable_protocols_exact;
+    }
+    
+ 
+    // Get the id and index of the state register to write to
+    delim = strstr(arg, "->sreg[");
+    if (!delim) {
+        return xasprintf("%s: missing `->sreg['", arg);
+    }
+    if (strlen(delim) <= strlen("->sreg")) {
+        return xasprintf("%s: missing index following `->sreg['", arg);
+    }
+    sreg_id = delim + strlen("->sreg[");
+    
+    // Parse the id of the register and set it in the ofpact struct
+    err = parse_int_string(sreg_id, (uint8_t*)(&id), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_id, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_id);
+    }
+    ru->register_id = ntohl(id);
+
+    // Parse the index and set the index in the ofpact struct
+    sreg_idx = tail + strlen("]["); 
+    err = parse_int_string(sreg_idx, (uint8_t*)(&idx), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_idx, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_idx);
+    }
+
+    ru->idx = ntohl(idx);
+
+    
+    delim = strstr(tail, "(");
+    if (!delim) {
+        return xasprintf("%s: missing `operation('", arg);
+    }
+    if (strlen(delim) <= strlen("(")) {
+        return xasprintf("%s: missing value following `operation('", arg);
+    }
+    
+    operation = delim + strlen("(");
+    
+    // Get the type of operation to update with
+    if (!strncmp(operation, "+", 1))
+    {
+	ru->operation_type = UPDATE_ADD;
+    }
+    else if (!strncmp(operation, "-", 1))
+    {
+	ru->operation_type = UPDATE_SUB;
+    }
+    else if (!strncmp(operation, "*", 1))
+    {
+	ru->operation_type = UPDATE_MULT;
+    }
+    else if (!strncmp(operation, "/", 1))
+    {
+	ru->operation_type = UPDATE_DIV;
+    }
+
+
+    return NULL;
+
+
+    
+}
+
+static char * OVS_WARN_UNUSED_RESULT
+parse_REGISTER_UPDATE(char *arg, struct ofpbuf *ofpacts,
+                   enum ofputil_protocol *usable_protocols)
+{
+    char *copy = xstrdup(arg);
+    char *error = register_update_parse__(copy, ofpacts, usable_protocols);
+    free(copy);
+    return error;
+}
+
+static void
+format_REGISTER_UPDATE(const struct ofpact_register_update *ru, struct ds *s)
+{
+    ds_put_cstr(s, "register_update:");
+    //mf_format(rw->field, &rw->value, &rw->mask, s);
+    //ds_put_format(s, "->%s", rw->field->name);
+}
+
+/* @P4: */
 struct ofp_action_lock {
     ovs_be16 type;
     ovs_be16 len;
     int idx;
+    int register_id;
 
-    uint8_t pad[8];
+    uint8_t pad[4];
 };
 OFP_ASSERT(sizeof(struct ofp_action_lock) == 16);
 
@@ -1357,6 +1587,7 @@ decode_ofpat_lock(const struct ofp_action_lock *a,
     ofpbuf_use_const(&b, a, ntohs(a->len));
     ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
     lock->idx = a->idx;
+    lock->register_id = a->register_id;
      
     return 0;
 }
@@ -1379,6 +1610,7 @@ encode_LOCK(const struct ofpact_lock *lock,
         a = put_OFPAT_LOCK(out);
         out->size = out->size - sizeof a->pad;
 	a->idx = lock->idx;
+	a->register_id = lock->register_id;
         ofpbuf_put(out, &lock, sizeof(struct ofpact_lock));
         pad_ofpat(out, start_ofs);
     }
@@ -1393,18 +1625,42 @@ lock_parse__(char *arg, struct ofpbuf *ofpacts,
     int err;
     int value;
     int idx;
+    int reg_id;
+    char *delim;
+    char *sreg_id;
+    char *sreg_idx;
 
-    // Parse the lock index and set the index in the ofpact struct
-    err = parse_int_string(arg, (uint8_t*)(&idx), 4, &tail);
-    if (err == ERANGE) {
-        return xasprintf("%s: too large for %u-byte field", arg, 4);
-    } else if (err != 0) {
-        return xasprintf("%s: bad syntax", arg);
+    // Get the id and index of the state register to write to
+    delim = strstr(arg, "sreg");
+    if (!delim) {
+        return xasprintf("%s: missing `sreg'", arg);
     }
+    if (strlen(delim) <= strlen("->sreg")) {
+        return xasprintf("%s: missing index following `sreg'", arg);
+    }
+    sreg_id = delim + strlen("sreg");
     
-    lock->idx = ntohl(idx);
- 
+    // Parse the id of the register and set it in the ofpact struct
+    err = parse_int_string(sreg_id, (uint8_t*)(&reg_id), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_id, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_id);
+    }
+    lock->register_id = ntohl(reg_id);
 
+    // Parse the index and set the index in the ofpact struct
+    sreg_idx = tail + strlen("["); 
+    err = parse_int_string(sreg_idx, (uint8_t*)(&idx), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_idx, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_idx);
+    }
+
+    lock->idx = ntohl(idx);
+
+   
     return NULL;
 
 
@@ -1432,8 +1688,9 @@ struct ofp_action_unlock {
     ovs_be16 type;
     ovs_be16 len;
     int idx;
+    int register_id;
 
-    uint8_t pad[8];
+    uint8_t pad[4];
 };
 OFP_ASSERT(sizeof(struct ofp_action_unlock) == 16);
 
@@ -1450,6 +1707,7 @@ decode_ofpat_unlock(const struct ofp_action_unlock *a,
     ofpbuf_use_const(&b, a, ntohs(a->len));
     ofpbuf_pull(&b, OBJECT_OFFSETOF(a, pad));
     unlock->idx = a->idx;
+    unlock->register_id = a->register_id;
      
     return 0;
 }
@@ -1472,6 +1730,7 @@ encode_UNLOCK(const struct ofpact_lock *unlock,
         a = put_OFPAT_UNLOCK(out);
         out->size = out->size - sizeof a->pad;
 	a->idx = unlock->idx;
+	a->register_id = unlock->register_id;
         ofpbuf_put(out, &unlock, sizeof(struct ofpact_unlock));
         pad_ofpat(out, start_ofs);
     }
@@ -1481,27 +1740,50 @@ static char * OVS_WARN_UNUSED_RESULT
 unlock_parse__(char *arg, struct ofpbuf *ofpacts,
                      enum ofputil_protocol *usable_protocols)
 {
-    struct ofpact_unlock *unlock = ofpact_put_UNLOCK(ofpacts);
+    struct ofpact_lock *unlock = ofpact_put_UNLOCK(ofpacts);
     char *tail;
     int err;
     int value;
     int idx;
+    int reg_id;
+    char *delim;
+    char *sreg_id;
+    char *sreg_idx;
 
-    // Parse the lock index and set the index in the ofpact struct
-    err = parse_int_string(arg, (uint8_t*)(&idx), 4, &tail);
-    if (err == ERANGE) {
-        return xasprintf("%s: too large for %u-byte field", arg, 4);
-    } else if (err != 0) {
-        return xasprintf("%s: bad syntax", arg);
+    // Get the id and index of the state register to write to
+    delim = strstr(arg, "sreg");
+    if (!delim) {
+        return xasprintf("%s: missing `sreg'", arg);
     }
+    if (strlen(delim) <= strlen("->sreg")) {
+        return xasprintf("%s: missing index following `sreg'", arg);
+    }
+    sreg_id = delim + strlen("sreg");
     
-    unlock->idx = ntohl(idx);
- 
+    // Parse the id of the register and set it in the ofpact struct
+    err = parse_int_string(sreg_id, (uint8_t*)(&reg_id), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_id, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_id);
+    }
+    unlock->register_id = ntohl(reg_id);
 
+    // Parse the index and set the index in the ofpact struct
+    sreg_idx = tail + strlen("["); 
+    err = parse_int_string(sreg_idx, (uint8_t*)(&idx), 4, &tail);
+    if (err == ERANGE) {
+        return xasprintf("%s: too large for %u-byte field", sreg_idx, 4);
+    } else if (err != 0) {
+        return xasprintf("%s: bad syntax", sreg_idx);
+    }
+
+    unlock->idx = ntohl(idx);
+
+   
     return NULL;
 
 
-    
 }
 
 static char * OVS_WARN_UNUSED_RESULT
@@ -6492,6 +6774,7 @@ ofpact_is_set_or_move_action(const struct ofpact *a)
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_REGISTER_UPDATE:
 	case OFPACT_LOCK:
 	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
@@ -6580,6 +6863,7 @@ ofpact_is_allowed_in_actions_set(const struct ofpact *a)
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_REGISTER_UPDATE:
 	case OFPACT_LOCK:
 	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
@@ -6761,6 +7045,7 @@ ovs_instruction_type_from_ofpact_type(enum ofpact_type type)
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_REGISTER_UPDATE:
 	case OFPACT_LOCK:
 	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
@@ -7421,6 +7706,7 @@ ofpact_check__(enum ofputil_protocol *usable_protocols, struct ofpact *a,
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_REGISTER_UPDATE:
 	case OFPACT_LOCK:
 	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:
@@ -7820,6 +8106,7 @@ ofpact_outputs_to_port(const struct ofpact *ofpact, ofp_port_t port)
 	case OFPACT_ADD_TO_FIELD:
 	case OFPACT_REGISTER_READ:
 	case OFPACT_REGISTER_WRITE:
+	case OFPACT_REGISTER_UPDATE:
 	case OFPACT_LOCK:
 	case OFPACT_UNLOCK:
 	case OFPACT_ADD_HEADER:

@@ -133,6 +133,7 @@
     OFPACT(SUB_FROM_FIELD,  ofpact_sub_from_field, ofpact, "sub_from_field") \
     OFPACT(REGISTER_READ,  ofpact_register_read, ofpact, "register_read") \
     OFPACT(REGISTER_WRITE,  ofpact_register_write, ofpact, "register_write") \
+    OFPACT(REGISTER_UPDATE,  ofpact_register_update, ofpact, "register_update") \
     OFPACT(LOCK,            ofpact_lock,        ofpact, "lock") \
     OFPACT(UNLOCK,          ofpact_unlock,      ofpact, "unlock") \
     OVS_OFPACTS
@@ -801,10 +802,33 @@ struct ofpact_register_write {
 };
 
 // @P4:
+/* OFPACT_REGISTER_UPDATE.
+ */
+
+enum ru_operation_type {
+    UPDATE_ADD = 0,
+    UPDATE_SUB,
+    UPDATE_MULT,
+    UPDATE_DIV
+};
+
+struct ofpact_register_update {
+    struct ofpact ofpact;
+    enum mf_field_id mf_id;        /* MFF_*. */
+    struct mf_field *field;
+    int literal_value;
+    int idx;
+    int register_id;
+    enum rw_value_type value_type;
+    enum ru_operation_type operation_type;
+};
+
+// @P4:
 /* OFPACT_LOCK.
  */
 struct ofpact_lock {
     struct ofpact ofpact;
+    int register_id;
     int idx;
 };
 
@@ -813,6 +837,7 @@ struct ofpact_lock {
  */
 struct ofpact_unlock {
     struct ofpact ofpact;
+    int register_id;
     int idx;
 };
 
