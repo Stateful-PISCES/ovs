@@ -4657,6 +4657,7 @@ compose_lock(struct xlate_ctx *ctx,
 	// USE 'idx' AS THE INDEX OF THE LOCK.
   struct p4_action_locks *p4_action_locks = get_p4_action_locks_instance();
   OVS_COMPOSE_ACTION_LOCK_LOCK_CASES
+//	printf("\n****************** LOCK %d LOCKED ****************\n", idx);
 }
 
 // @P4:
@@ -4677,6 +4678,7 @@ compose_unlock(struct xlate_ctx *ctx,
 	// USE 'idx' AS THE INDEX OF THE LOCK.
   struct p4_action_locks *p4_action_locks = get_p4_action_locks_instance();
   OVS_COMPOSE_ACTION_LOCK_UNLOCK_CASES
+//	printf("\n++++++++++++++++++ LOCK %d UNLOCKED ++++++++++++++++++++\n", idx);
 }
 
 static void
