@@ -251,7 +251,8 @@ AC_DEFUN([OVS_CHECK_P4], [
   
   mkdir -p $p4outputdir
   AS_IF([test -z "$p4frargfile"], [p4c-behavioral $p4inputfile --gen-dir $p4outputdir/temp --plugin ovs],
-        [p4c-behavioral $p4inputfile --gen-dir $p4outputdir/temp --plugin ovs --flow-rules-argfile $p4frargfile])
+        [p4c-behavioral $p4inputfile --gen-dir $p4outputdir/temp --plugin ovs --flow-rules-argfile $p4frargfile;
+         mv $p4outputdir/temp/l2_switch_gen.sh $p4outputdir])
   mv $p4outputdir/temp/plugin/ovs/inc/* $p4outputdir
   mv $p4outputdir/temp/dict.pickle $p4outputdir
   rm -rf $p4outputdir/temp
