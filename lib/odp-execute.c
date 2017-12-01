@@ -718,6 +718,42 @@ odp_execute_remove_header(struct dp_packet *packet,
     OVS_ODP_EXECUTE_REMOVE_HEADER /* @P4: */
 }
 
+/* @P4: */
+static void
+odp_execute_register_read(struct dp_packet *packet,
+                const struct nlattr *a)
+{
+  union mf_value *value = nl_attr_get(a);            a = nl_attr_next(a);
+  uint32_t register_id = nl_attr_get_u32(a);         a = nl_attr_next(a);
+  uint32_t idx = nl_attr_get_u32(a);                 a = nl_attr_next(a);
+  void *register_field = (void *)nl_attr_get_u64(a); a = nl_attr_next(a);
+
+  printf("Register field retrieved is: %p\n", register_field);
+
+//  struct p4_registers *p4_regs = get_p4_registers_instance();
+
+//  OVS_COMPOSE_P4_REGISTER_READ_CASES
+}
+
+/* @P4: */
+static void
+odp_execute_register_write(struct dp_packet *packet,
+                const struct nlattr *a)
+{
+/*
+    enum ovs_key_attr key = nl_attr_type(a);
+
+    switch (key) {
+    OVS_ODP_EXECUTE_ADD_TO_FIELD_CASES
+
+    case OVS_KEY_ATTR_UNSPEC:
+    case __OVS_KEY_ATTR_MAX:
+    default:
+        OVS_NOT_REACHED();
+    }
+*/
+}
+
 static bool
 requires_datapath_assistance(const struct nlattr *a)
 {
@@ -753,6 +789,8 @@ requires_datapath_assistance(const struct nlattr *a)
 	case OVS_ACTION_ATTR_ADD_HEADER:
 	case OVS_ACTION_ATTR_REMOVE_HEADER:
 	case OVS_ACTION_ATTR_DEPARSE:
+  case OVS_ACTION_ATTR_REGISTER_READ:
+  case OVS_ACTION_ATTR_REGISTER_WRITE:
 		return false;
 
     case OVS_ACTION_ATTR_UNSPEC:
@@ -944,6 +982,22 @@ odp_execute_actions(void *dp, struct dp_packet **packets, int cnt, bool steal,
 				deparse(packets[i]);
 			}
 			break;
+
+		/* @P4: */
+		case OVS_ACTION_ATTR_REGISTER_READ:
+    {
+			for (i = 0; i < cnt; i++) {
+				odp_execute_register_read(packets[i], nl_attr_get(a));
+			}
+      break;
+    }
+		
+    /* @P4: */
+		case OVS_ACTION_ATTR_REGISTER_WRITE:
+    {
+      printf("OVS_ACTION_ATTR_REGISTER_WRITE called!\n");
+      break;
+    }
 
         case OVS_ACTION_ATTR_OUTPUT:
         case OVS_ACTION_ATTR_TUNNEL_PUSH:

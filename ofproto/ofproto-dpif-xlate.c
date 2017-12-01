@@ -4569,14 +4569,20 @@ compose_register_read(struct xlate_ctx *ctx,
 	ctx->xout->slow |= commit_odp_actions(&ctx->xin->flow, &ctx->base_flow,
 			ctx->odp_actions, ctx->wc,
 			use_masked);
+	size_t offset = nl_msg_start_nested(ctx->odp_actions,
+	                                    OVS_ACTION_ATTR_REGISTER_READ);
 
 	const struct mf_field *mf = register_read->field;
 	const union mf_value *value = &register_read->value;
 	const union mf_value *mask = &register_read->mask;
 	int idx = register_read->idx;
 	int register_id = register_read->register_id;
+ 
+  nl_msg_put_unspec(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_READ, value, sizeof *value); 
+  nl_msg_put_u32(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_READ, register_id);
+  nl_msg_put_u32(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_READ, idx);
 
-	//mf_mask_field_and_prereqs(mf, wc);
+  //mf_mask_field_and_prereqs(mf, wc);
 	//if (mf_are_prereqs_ok(mf, flow)) {
 	//	switch (mf->id) {
 		//OVS_COMPOSE_REGISTER_READ_CASES
@@ -4596,8 +4602,14 @@ compose_register_read(struct xlate_ctx *ctx,
         //mf_set_flow_value_masked(mf, value, mask, flow);
 
 	struct p4_registers *p4_regs = get_p4_registers_instance();
-	OVS_COMPOSE_P4_REGISTER_READ_CASES
+  void *register_field;
 	
+  OVS_COMPOSE_P4_REGISTER_READ_CASES
+
+  nl_msg_put_u64(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_READ, (uint64_t)register_field);
+//  nl_msg_put_unspec(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_READ, &register_field, sizeof register_field);
+  printf("Register field recorded is: %p.\n", register_field);
+  nl_msg_end_nested(ctx->odp_actions, offset);
         //printf("\n****************** ETH SRC ADDR %08X****************\n", flow->_ethernet_.hdr.ethernet__srcAddr);
         //printf("\n****************** FLOW_REG AFTER %d****************\n", flow->regs[mf->id - MFF_REG0]);
 }
@@ -4613,6 +4625,8 @@ compose_register_write(struct xlate_ctx *ctx,
 	ctx->xout->slow |= commit_odp_actions(&ctx->xin->flow, &ctx->base_flow,
 			ctx->odp_actions, ctx->wc,
 			use_masked);
+	size_t offset = nl_msg_start_nested(ctx->odp_actions,
+	                                    OVS_ACTION_ATTR_REGISTER_WRITE);
 
 	
 	const int *value;
@@ -4643,6 +4657,7 @@ compose_register_write(struct xlate_ctx *ctx,
 //	int *stateful_regs = getStatefulRegisterInstance();
   struct p4_registers *p4_regs = get_p4_registers_instance();
 	OVS_COMPOSE_P4_REGISTER_WRITE_CASES
+  nl_msg_end_nested(ctx->odp_actions, offset);
 	//printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[idx]);
 }
 
@@ -4657,6 +4672,7 @@ compose_register_update(struct xlate_ctx *ctx,
 	ctx->xout->slow |= commit_odp_actions(&ctx->xin->flow, &ctx->base_flow,
 			ctx->odp_actions, ctx->wc,
 			use_masked);
+  //TODO: Add OVS_ACTION_ATTR_REGISTER_UPDATE to ctx->odp_actions 
 
 	
 	int register_value;
