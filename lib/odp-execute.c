@@ -727,12 +727,8 @@ odp_execute_register_read(struct dp_packet *packet,
   uint32_t register_id = nl_attr_get_u32(a);         a = nl_attr_next(a);
   uint32_t idx = nl_attr_get_u32(a);                 a = nl_attr_next(a);
   void *register_field = (void *)nl_attr_get_u64(a); a = nl_attr_next(a);
-
-  printf("Register field retrieved is: %p\n", register_field);
-
-//  struct p4_registers *p4_regs = get_p4_registers_instance();
-
-//  OVS_COMPOSE_P4_REGISTER_READ_CASES
+  
+  OVS_ODP_EXECUTE_REGISTER_READ
 }
 
 /* @P4: */

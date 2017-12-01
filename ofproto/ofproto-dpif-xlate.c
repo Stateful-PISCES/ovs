@@ -4607,8 +4607,6 @@ compose_register_read(struct xlate_ctx *ctx,
   OVS_COMPOSE_P4_REGISTER_READ_CASES
 
   nl_msg_put_u64(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_READ, (uint64_t)register_field);
-//  nl_msg_put_unspec(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_READ, &register_field, sizeof register_field);
-  printf("Register field recorded is: %p.\n", register_field);
   nl_msg_end_nested(ctx->odp_actions, offset);
         //printf("\n****************** ETH SRC ADDR %08X****************\n", flow->_ethernet_.hdr.ethernet__srcAddr);
         //printf("\n****************** FLOW_REG AFTER %d****************\n", flow->regs[mf->id - MFF_REG0]);
