@@ -4649,12 +4649,18 @@ compose_register_write(struct xlate_ctx *ctx,
 	int idx = register_write->idx;
 	int register_id = register_write->register_id;
 
+  nl_msg_put_unspec(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_WRITE, value, sizeof *value); 
+  nl_msg_put_u32(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_WRITE, register_id);
+  nl_msg_put_u32(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_WRITE, idx);
 	
 	//printf("\n****************** REGISTER WRITE IDX %d****************\n", register_write->idx);
 
-//	int *stateful_regs = getStatefulRegisterInstance();
   struct p4_registers *p4_regs = get_p4_registers_instance();
-	OVS_COMPOSE_P4_REGISTER_WRITE_CASES
+  void *register_field;
+	
+  OVS_COMPOSE_P4_REGISTER_WRITE_CASES
+  
+  nl_msg_put_u64(ctx->odp_actions, OVS_ACTION_ATTR_REGISTER_WRITE, (uint64_t)register_field);
   nl_msg_end_nested(ctx->odp_actions, offset);
 	//printf("\n****************** REGISTER WRITE VAL %d****************\n", stateful_regs[idx]);
 }

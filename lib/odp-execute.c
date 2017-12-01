@@ -736,18 +736,12 @@ static void
 odp_execute_register_write(struct dp_packet *packet,
                 const struct nlattr *a)
 {
-/*
-    enum ovs_key_attr key = nl_attr_type(a);
-
-    switch (key) {
-    OVS_ODP_EXECUTE_ADD_TO_FIELD_CASES
-
-    case OVS_KEY_ATTR_UNSPEC:
-    case __OVS_KEY_ATTR_MAX:
-    default:
-        OVS_NOT_REACHED();
-    }
-*/
+  union mf_value *value = nl_attr_get(a);            a = nl_attr_next(a);
+  uint32_t register_id = nl_attr_get_u32(a);         a = nl_attr_next(a);
+  uint32_t idx = nl_attr_get_u32(a);                 a = nl_attr_next(a);
+  void *register_field = (void *)nl_attr_get_u64(a); a = nl_attr_next(a);
+  
+  OVS_ODP_EXECUTE_REGISTER_WRITE
 }
 
 static bool
@@ -991,7 +985,9 @@ odp_execute_actions(void *dp, struct dp_packet **packets, int cnt, bool steal,
     /* @P4: */
 		case OVS_ACTION_ATTR_REGISTER_WRITE:
     {
-      printf("OVS_ACTION_ATTR_REGISTER_WRITE called!\n");
+			for (i = 0; i < cnt; i++) {
+				odp_execute_register_write(packets[i], nl_attr_get(a));
+			}
       break;
     }
 
